@@ -2,16 +2,20 @@
 
 Internal operator tool for EOI intake, AI readiness assessment, checkpoint workflow, and pipeline CSV export.
 
+## Prerequisites
+
+Start the platform stack first — see [deployment-catalog/README.md](../deployment-catalog/README.md) (Gateway local bootstrap + ARM/Control Centre in Docker). For LLM narratives, point `LOCAL_LLM_BASE_URL` at your existing inference (e.g. vllm_server on `http://localhost/v1`).
+
 ## Quick start
 
-```bash
+```powershell
 cd ai-adoption-studio
 pip install -e ".[dev]"
 pip install -e ../ai-runtime-manager
 
-set STUDIO_DATA_ROOT=./data
-set STUDIO_INTERNAL_API_KEY=dev-key
-set LOCAL_LLM_BASE_URL=http://localhost/v1
+$env:STUDIO_DATA_ROOT = ".\data"
+$env:STUDIO_INTERNAL_API_KEY = "dev-key"
+$env:LOCAL_LLM_BASE_URL = "http://localhost/v1"
 
 uvicorn ai_adoption_studio.main:app --reload --port 8010
 ```
