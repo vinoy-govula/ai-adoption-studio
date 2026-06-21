@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0.0",
+  "question_set_id": "assessment-internal-v1",
+  "visibility": "internal",
+  "description": "Full internal assessment questionnaire — extends public EOI.",
+  "extends": "eoi-public-v1",
+  "questions": [
+    {
+      "id": "executive_sponsor_identified",
+      "type": "boolean",
+      "label": "Executive sponsor identified?",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "strategy"
+    },
+    {
+      "id": "ai_strategy_documented",
+      "type": "select",
+      "label": "AI strategy documentation maturity",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "strategy",
+      "options": ["none", "informal", "draft", "approved"]
+    },
+    {
+      "id": "document_corpus_ready",
+      "type": "select",
+      "label": "Knowledge/document corpus readiness",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "data",
+      "options": ["none", "scattered", "partially_curated", "curated"]
+    },
+    {
+      "id": "data_classification_in_place",
+      "type": "boolean",
+      "label": "Data classification scheme in place?",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "data"
+    },
+    {
+      "id": "compliance_frameworks",
+      "type": "multi_select",
+      "label": "Applicable compliance frameworks",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "governance",
+      "options": ["none", "privacy_act", "hipaa", "iso27001", "soc2", "essential_eight", "other"]
+    },
+    {
+      "id": "audit_retention_requirement",
+      "type": "select",
+      "label": "Required AI audit retention",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "governance",
+      "options": ["30_days", "90_days", "1_year", "unlimited", "disabled"]
+    },
+    {
+      "id": "it_ops_capacity",
+      "type": "select",
+      "label": "Internal IT/ops capacity for platform operations",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "infrastructure",
+      "options": ["none", "limited", "moderate", "strong"]
+    },
+    {
+      "id": "deployment_target",
+      "type": "select",
+      "label": "Preferred deployment target",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "infrastructure",
+      "options": ["on_prem_vm", "private_cloud", "public_cloud", "hybrid", "undecided"]
+    },
+    {
+      "id": "concurrent_users",
+      "type": "integer",
+      "label": "Peak concurrent AI users expected",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "infrastructure",
+      "min": 1
+    },
+    {
+      "id": "daily_requests",
+      "type": "integer",
+      "label": "Estimated daily AI requests at steady state",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "infrastructure",
+      "min": 0
+    },
+    {
+      "id": "target_latency_ms",
+      "type": "integer",
+      "label": "Target median response latency (ms)",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "infrastructure",
+      "default": 3000
+    },
+    {
+      "id": "change_champion_identified",
+      "type": "boolean",
+      "label": "Change/adoption champion identified?",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "change_readiness"
+    },
+    {
+      "id": "staff_ai_literacy",
+      "type": "select",
+      "label": "Staff AI literacy",
+      "required": true,
+      "visibility": "internal",
+      "dimension": "change_readiness",
+      "options": ["low", "mixed", "moderate", "high"]
+    },
+    {
+      "id": "pilot_department",
+      "type": "text",
+      "label": "Recommended pilot department",
+      "required": false,
+      "visibility": "internal",
+      "dimension": "change_readiness"
+    }
+  ]
+}

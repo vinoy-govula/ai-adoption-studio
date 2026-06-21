@@ -1,0 +1,175 @@
+{
+  "schema_version": "1.0.0",
+  "question_set_id": "eoi-public-v1",
+  "visibility": "public",
+  "description": "Website EOI questionnaire — 18 questions max for sales pipeline intake.",
+  "questions": [
+    {
+      "id": "org_name",
+      "type": "text",
+      "label": "Organisation name",
+      "required": true,
+      "visibility": "public"
+    },
+    {
+      "id": "industry",
+      "type": "select",
+      "label": "Industry",
+      "required": true,
+      "visibility": "public",
+      "options": [
+        "healthcare",
+        "aged_care",
+        "government",
+        "financial_services",
+        "legal_professional",
+        "energy_utilities",
+        "manufacturing",
+        "education",
+        "professional_services",
+        "retail",
+        "technology",
+        "other"
+      ]
+    },
+    {
+      "id": "employee_band",
+      "type": "select",
+      "label": "Approximate organisation size",
+      "required": true,
+      "visibility": "public",
+      "options": ["1-50", "51-200", "201-1000", "1001-5000", "5000+"]
+    },
+    {
+      "id": "country",
+      "type": "text",
+      "label": "Primary operating country",
+      "required": true,
+      "visibility": "public"
+    },
+    {
+      "id": "contact_name",
+      "type": "text",
+      "label": "Your name",
+      "required": true,
+      "visibility": "public"
+    },
+    {
+      "id": "contact_email",
+      "type": "email",
+      "label": "Work email",
+      "required": true,
+      "visibility": "public"
+    },
+    {
+      "id": "contact_role",
+      "type": "text",
+      "label": "Your role",
+      "required": true,
+      "visibility": "public"
+    },
+    {
+      "id": "intent",
+      "type": "select",
+      "label": "What best describes your intent?",
+      "required": true,
+      "visibility": "public",
+      "options": ["explore", "assess", "deploy", "expand"]
+    },
+    {
+      "id": "primary_pain",
+      "type": "multi_select",
+      "label": "Primary challenges (select all that apply)",
+      "required": true,
+      "visibility": "public",
+      "options": [
+        "privacy_compliance",
+        "cost_unpredictability",
+        "productivity",
+        "knowledge_access",
+        "vendor_lock_in",
+        "lack_of_expertise",
+        "unclear_roi"
+      ]
+    },
+    {
+      "id": "data_sensitivity",
+      "type": "select",
+      "label": "How sensitive is the data you would use with AI?",
+      "required": true,
+      "visibility": "public",
+      "options": ["low", "medium", "high", "regulated"]
+    },
+    {
+      "id": "data_residency_required",
+      "type": "boolean",
+      "label": "Must AI data and processing remain on-premises or in-country?",
+      "required": true,
+      "visibility": "public"
+    },
+    {
+      "id": "user_band",
+      "type": "select",
+      "label": "Expected number of AI users in first 6 months",
+      "required": true,
+      "visibility": "public",
+      "options": ["1-20", "21-50", "51-200", "201-1000", "1000+"]
+    },
+    {
+      "id": "use_case_interest",
+      "type": "multi_select",
+      "label": "Use cases of interest",
+      "required": true,
+      "visibility": "public",
+      "options": [
+        "knowledge_assistant",
+        "document_summarisation",
+        "sql_analytics",
+        "survey_analysis",
+        "coding_assistant",
+        "customer_support",
+        "other"
+      ]
+    },
+    {
+      "id": "timeline",
+      "type": "select",
+      "label": "Desired timeline to first production use",
+      "required": true,
+      "visibility": "public",
+      "options": ["0-4_weeks", "1-3_months", "3-6_months", "6+_months"]
+    },
+    {
+      "id": "budget_band",
+      "type": "select",
+      "label": "Indicative budget band (optional)",
+      "required": false,
+      "visibility": "public",
+      "options": ["under_50k", "50k_150k", "150k_500k", "500k_plus", "not_disclosed"]
+    },
+    {
+      "id": "gpu_available",
+      "type": "select",
+      "label": "Do you have GPU infrastructure available or budgeted?",
+      "required": true,
+      "visibility": "public",
+      "options": ["yes_on_prem", "yes_cloud", "planned", "no", "unknown"]
+    },
+    {
+      "id": "current_ai_usage",
+      "type": "select",
+      "label": "Current AI usage",
+      "required": true,
+      "visibility": "public",
+      "options": ["none", "public_api_only", "pilot_internal", "production_mixed", "production_private"]
+    },
+    {
+      "id": "additional_context",
+      "type": "textarea",
+      "label": "Anything else we should know?",
+      "required": false,
+      "visibility": "public",
+      "max_length": 2000
+    }
+  ]
+}
