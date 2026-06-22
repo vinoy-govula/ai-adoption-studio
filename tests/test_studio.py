@@ -16,8 +16,9 @@ def store(tmp_path: Path) -> LeadStore:
 
 
 @pytest.mark.asyncio
-async def test_eoi_api_creates_lead(store: LeadStore, tmp_path: Path, monkeypatch) -> None:
+async def test_eoi_api_creates_lead(store: LeadStore, monkeypatch) -> None:
     monkeypatch.setattr("ai_adoption_studio.services.store.lead_store", store)
+    monkeypatch.setattr("ai_adoption_studio.main.lead_store", store)
     payload = {
         "consent": {"privacy_policy_accepted": True, "contact_permitted": True},
         "responses": {"org_name": "Test Org", "industry": "healthcare"},
@@ -45,3 +46,31 @@ def test_lead_store_create_and_list(store: LeadStore) -> None:
     path = store._store.lead_dir(record["lead_id"]) / "eoi-intent.json"
     assert path.exists()
     assert json.loads(path.read_text(encoding="utf-8"))["responses"]["org_name"] == "Acme"
+
+
+@pytest.mark.asyncio
+async def test_legacy_lead_redirects_to_wizard(store: LeadStore, monkeypatch) -> None:
+    monkeypatch.setattr("ai_adoption_studio.services.store.lead_store", store)
+    monkeypatch.setattr("ai_adoption_studio.main.lead_store", store)
+    record = store.create_eoi(
+        {"consent": {"privacy_policy_accepted": True, "contact_permitted": True}, "responses": {"org_name": "Acme"}}
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        resp = await client.get(f"/leads/{record['lead_id']}")
+    assert resp.status_code == 302
+    assert f"/wizard/{record['lead_id']}" in resp.headers["location"]
+
+
+@pytest.mark.asyncio
+async def test_inbox_lists_leads(store: LeadStore, monkeypatch) -> None:
+    monkeypatch.setattr("ai_adoption_studio.services.store.lead_store", store)
+    monkeypatch.setattr("ai_adoption_studio.main.lead_store", store)
+    store.create_eoi(
+        {"consent": {"privacy_policy_accepted": True, "contact_permitted": True}, "responses": {"org_name": "Inbox Co"}}
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "Inbox Co" in resp.text

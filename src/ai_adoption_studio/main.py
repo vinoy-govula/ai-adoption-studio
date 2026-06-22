@@ -1,88 +1,94 @@
+"""Application entrypoint — FastHTML + MonsterUI operator wizard."""
+
+from __future__ import annotations
+
 import logging
-from pathlib import Path
 
 from fasthtml.common import fast_app
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 
 from ai_adoption_studio import __version__
+from ai_adoption_studio.adapters.cursor_agent import CursorAgentBridge
 from ai_adoption_studio.api.eoi import register_eoi_routes
 from ai_adoption_studio.config import settings
-from ai_adoption_studio.pages.studio import assessment_page, eoi_form_page, export_page, leads_page
-from ai_adoption_studio.services.assessment_service import (
-    approve_assessment_checkpoint,
-    export_csv,
-    qualify_lead,
-    regenerate_narrative,
-    run_assessment,
-)
-from ai_adoption_studio.services.store import lead_store
+from ai_adoption_studio.layouts.base import theme_headers
+from ai_adoption_studio.middleware.auth import InternalAuthMiddleware
+from ai_adoption_studio.pages.inbox import inbox_page
+from ai_adoption_studio.pages.studio import export_page, eoi_form_page
+from ai_adoption_studio.pages.wizard import handle_step_post, wizard_page
+from ai_adoption_studio.routes.api_cursor import register_api_cursor_routes
+from ai_adoption_studio.routes.api_jobs import register_api_job_routes
+from ai_adoption_studio.routes.api_leads import register_api_lead_routes
+from ai_adoption_studio.services.assessment_service import export_csv
+from ai_adoption_studio.services.certification_service import CertificationService
+from ai_adoption_studio.services.job_runner import JobRunner
+from ai_adoption_studio.services.smoke_test_service import SmokeTestService
+from ai_adoption_studio.services.store import LeadStore, lead_store
+from ai_adoption_studio.services.wizard_service import WizardService, wizard_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
-app, rt = fast_app()
+app, rt = fast_app(hdrs=theme_headers())
+app.add_middleware(InternalAuthMiddleware)
+
+_jobs = JobRunner(lead_store, wizard_service)
+_smoke = SmokeTestService(wizard_service)
+_bridge = CursorAgentBridge(lead_store)
+_certify = CertificationService(wizard_service, _bridge)
+
 register_eoi_routes(app)
+register_api_lead_routes(app, lead_store, wizard_service, _jobs, _smoke)
+register_api_job_routes(app, lead_store, _jobs)
+register_api_cursor_routes(app, lead_store, _bridge, _certify)
 
 
 @rt("/")
-def leads_index():
-    return leads_page(lead_store.list_leads())
+def inbox_index():
+    return inbox_page(lead_store.list_leads())
+
+
+@rt("/wizard/{lead_id}", methods=["GET"])
+async def wizard_entry(lead_id: str):
+    return await wizard_page(lead_id, None, store=lead_store, wizard=wizard_service, jobs=_jobs)
+
+
+@rt("/wizard/{lead_id}/{step_id}", methods=["GET"])
+async def wizard_step_get(lead_id: str, step_id: str):
+    return await wizard_page(lead_id, step_id, store=lead_store, wizard=wizard_service, jobs=_jobs)
+
+
+@rt("/wizard/{lead_id}/{step_id}", methods=["POST"])
+async def wizard_step_post(lead_id: str, step_id: str, req: Request):
+    form = dict(await req.form())
+    return await handle_step_post(lead_id, step_id, form, store=lead_store, wizard=wizard_service, jobs=_jobs)
+
+
+@rt("/wizard/{lead_id}/back", methods=["POST"])
+async def wizard_back(lead_id: str, req: Request):
+    form = dict(await req.form())
+    step_id = str(form.get("step_id", ""))
+    wizard_service.go_back(lead_id, step_id or None)
+    state = wizard_service.get_state(lead_id)
+    from ai_adoption_studio.pages.wizard_steps.render import render_step
+
+    return await render_step(lead_id, state.current_step, store=lead_store, wizard=wizard_service, jobs=_jobs)
+
+
+@rt("/wizard/{lead_id}/draft", methods=["POST"])
+async def wizard_draft(lead_id: str, req: Request):
+    form = dict(await req.form())
+    step_id = str(form.get("step_id", ""))
+    wizard_service.save_draft(lead_id, step_id, form)
+    from fasthtml.common import P
+
+    return P("Draft saved.", cls="text-green-700 text-sm")
 
 
 @rt("/leads/{lead_id}")
-def lead_detail(lead_id: str):
-    eoi = lead_store.get_eoi(lead_id)
-    report = lead_store.get_assessment_report(lead_id)
-    narrative = lead_store._store.lead_dir(lead_id) / (report or {}).get(
-        "llm_narrative_ref",
-        "",
-    )
-    narrative_path = str(narrative) if narrative.exists() else None
-    return assessment_page(lead_id, eoi, report, narrative_path)
-
-
-@rt("/leads/{lead_id}/assess", methods=["POST"])
-async def lead_assess(
-    lead_id: str,
-    concurrent_users: int = 25,
-    daily_requests: int = 8000,
-    it_ops_capacity: str = "moderate",
-    deployment_target: str = "private_cloud",
-    executive_sponsor_identified: str = "",
-):
-    internal = {
-        "executive_sponsor_identified": executive_sponsor_identified == "true",
-        "ai_strategy_documented": "draft",
-        "document_corpus_ready": "partially_curated",
-        "data_classification_in_place": True,
-        "compliance_frameworks": ["privacy_act"],
-        "audit_retention_requirement": "90_days",
-        "it_ops_capacity": it_ops_capacity,
-        "deployment_target": deployment_target,
-        "concurrent_users": concurrent_users,
-        "daily_requests": daily_requests,
-        "change_champion_identified": True,
-        "staff_ai_literacy": "moderate",
-    }
-    await run_assessment(lead_store, lead_id, internal)
-    return lead_detail(lead_id)
-
-
-@rt("/leads/{lead_id}/qualify", methods=["POST"])
-def lead_qualify(lead_id: str):
-    qualify_lead(lead_store, lead_id, actor="sales")
-    return leads_page(lead_store.list_leads(), message=f"Lead {lead_id} qualified.")
-
-
-@rt("/leads/{lead_id}/approve-cp2", methods=["POST"])
-def lead_approve_cp2(lead_id: str, actor: str = "client@example.com"):
-    approve_assessment_checkpoint(lead_store, lead_id, actor=actor)
-    return lead_detail(lead_id)
-
-
-@rt("/leads/{lead_id}/narrative", methods=["POST"])
-async def lead_narrative(lead_id: str):
-    await regenerate_narrative(lead_store, lead_id, use_llm=False)
-    return lead_detail(lead_id)
+def legacy_lead_redirect(lead_id: str):
+    return RedirectResponse(url=f"/wizard/{lead_id}", status_code=302)
 
 
 @rt("/export")
@@ -95,6 +101,7 @@ def export_view():
 @rt("/export", methods=["POST"])
 def export_run():
     export_dir = settings.data_root / "exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
     written = export_csv(lead_store, export_dir, as_zip=True)
     return export_page([path.name for path in written], message="Export complete.")
 

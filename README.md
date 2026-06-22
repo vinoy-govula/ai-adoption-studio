@@ -1,18 +1,16 @@
 # AI Adoption Studio
 
-Internal operator **console application** for EOI intake, AI readiness assessment, checkpoint workflow, and pipeline CSV export.
+Internal operator **web wizard** for EOI intake, AI readiness assessment, playground deploy, validation, and pipeline CSV export.
 
 Operator docs and question sets: [docs/README.md](docs/README.md). **Wizard design pack:** [docs/design/README.md](docs/design/README.md) (FastHTML + MonsterUI + HTMX). JSON schemas and engine specs: [ai-runtime-manager/docs/adoption-studio](../ai-runtime-manager/docs/adoption-studio/README.md).
 
 ## Prerequisites
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.13. Sibling checkout of [ai-runtime-manager](../ai-runtime-manager) is required (path dependency).
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.13. Sibling checkouts of [ai-runtime-manager](../ai-runtime-manager) and [ai-platform-sdk](../ai-platform-sdk) are required (path dependencies).
 
-Start the platform stack first — see [deployment-catalog/README.md](../deployment-catalog/README.md) (Gateway local bootstrap + ARM/Control Centre in Docker). For LLM narratives, point `LOCAL_LLM_BASE_URL` at your existing inference (e.g. vllm_server on `http://localhost/v1`).
+Start the platform stack first — see [deployment-catalog/README.md](../deployment-catalog/README.md).
 
-## Quick start (current prototype)
-
-Legacy web UI (being replaced by console wizard):
+## Quick start
 
 ```powershell
 cd ai-adoption-studio
@@ -21,31 +19,39 @@ uv sync --extra dev
 
 $env:STUDIO_DATA_ROOT = ".\data"
 $env:STUDIO_INTERNAL_API_KEY = "dev-key"
+$env:STUDIO_PLATFORM_API_KEY = "your-gateway-key"
+$env:STUDIO_GATEWAY_BASE_URL = "http://localhost:8000"
+$env:STUDIO_RUNTIME_MANAGER_BASE_URL = "http://localhost:8001"
+$env:STUDIO_CONTROL_CENTRE_BASE_URL = "http://localhost:8002"
+$env:STUDIO_DELIVERY_VALIDATOR_ROOT = "..\ai-delivery-validator"
 $env:LOCAL_LLM_BASE_URL = "http://localhost/v1"
 
 uv run uvicorn ai_adoption_studio.main:app --reload --port 8010
 ```
 
-**Target operator experience** (after implementation):
+- Inbox: http://localhost:8010/
+- Wizard: http://localhost:8010/wizard/{lead_id} (HTMX requests include internal API key from server-rendered headers)
+- Public EOI API: `POST http://localhost:8010/api/v1/eoi`
 
-```powershell
-uv run studio leads list
-uv run studio wizard lead-20260621-abc123
-```
-
-## Run Tests
+## Run tests
 
 ```powershell
 uv run pytest -v
 ```
 
-- Internal UI: http://localhost:8010/
-- Public EOI API: `POST http://localhost:8010/api/v1/eoi`
+Live stack tests: `uv run pytest -v -m live_stack`
 
 ## Environment
 
 | Variable | Purpose |
 |----------|---------|
 | `STUDIO_DATA_ROOT` | Artifact storage root (default `./data`) |
-| `STUDIO_INTERNAL_API_KEY` | Internal API/UI auth key |
+| `STUDIO_INTERNAL_API_KEY` | Operator wizard/API auth |
+| `STUDIO_PLATFORM_API_KEY` | Gateway/SDK smoke and validation |
+| `STUDIO_GATEWAY_BASE_URL` | Gateway base URL (default `http://localhost:8000`) |
+| `STUDIO_RUNTIME_MANAGER_BASE_URL` | RM base URL (default `http://localhost:8001`) |
+| `STUDIO_CONTROL_CENTRE_BASE_URL` | Control Centre URL (default `http://localhost:8002`) |
+| `STUDIO_DELIVERY_VALIDATOR_ROOT` | Path to ai-delivery-validator |
+| `STUDIO_CURSOR_API_KEY` | Cursor agent API key (Phase 4 assist) |
+| `STUDIO_CURSOR_WORKSPACE_ROOT` | Parent AI Adoption folder for Cursor local runtime |
 | `LOCAL_LLM_BASE_URL` | Internal narrative generation |

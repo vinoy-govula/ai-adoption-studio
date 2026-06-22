@@ -13,10 +13,12 @@ dependencies = [
     "python-fasthtml>=0.12.0",
     "monsterui>=1.0.0",
     "ai-runtime-manager",
+    "ai-platform",
 ]
 
 [tool.uv.sources]
 ai-runtime-manager = { path = "../ai-runtime-manager", editable = true }
+ai-platform = { path = "../ai-platform-sdk", editable = true }
 
 [project.optional-dependencies]
 dev = [
