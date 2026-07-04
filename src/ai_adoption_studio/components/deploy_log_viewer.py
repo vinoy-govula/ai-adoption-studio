@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fasthtml.common import A, Button, Div, FT, H4, H5, Li, P, Pre, Progress, Span, Ul
-from monsterui.all import ButtonT, Card
+from monsterui.all import Card
 
 from ai_adoption_studio.components.htmx import operator_hx_headers
 from ai_adoption_studio.config import settings
@@ -21,6 +21,10 @@ _ERROR_MARKERS = (
     "exit ",
 )
 
+_ACTION_BUTTON_CLS = "uk-btn h-10 px-4 inline-flex items-center justify-center text-center"
+_SECONDARY_BUTTON_CLS = f"{_ACTION_BUTTON_CLS} uk-btn-secondary"
+_GHOST_BUTTON_CLS = f"{_ACTION_BUTTON_CLS} uk-btn-ghost"
+
 
 def _log_insights(log_text: str) -> list[str]:
     lines = [line.strip() for line in log_text.splitlines() if line.strip()]
@@ -36,26 +40,26 @@ def _job_actions(lead_id: str, job: JobRecord) -> FT:
     auth = operator_hx_headers()
     return Div(cls="flex flex-wrap gap-2 mt-4")(
         Button(
-            "View latest log",
-            cls=ButtonT.secondary,
+            "Refresh terminal",
+            cls=_SECONDARY_BUTTON_CLS,
             type="button",
-            hx_get=f"/api/jobs/{job.job_id}/log?lead_id={lead_id}&tail=200",
-            hx_target=f"#job-log-{job.job_id}",
+            hx_get=f"/api/jobs/{job.job_id}?lead_id={lead_id}",
+            hx_target=f"#job-progress-{job.job_id}",
             hx_swap="outerHTML",
             hx_headers=auth,
         ),
         A(
             "Download log",
             href=f"/api/jobs/{job.job_id}/log/download?lead_id={lead_id}",
-            cls=ButtonT.secondary,
+            cls=_SECONDARY_BUTTON_CLS,
         ),
         Button(
             "Diagnose with Cursor",
-            cls=ButtonT.ghost,
+            cls=_GHOST_BUTTON_CLS,
             type="button",
             hx_post=f"/api/leads/{lead_id}/cursor/troubleshoot",
             hx_vals='{"failed_check":"deploy_lab"}',
-            hx_target="#cursor-assist-output",
+            hx_target=f"#job-diagnosis-{job.job_id}",
             hx_headers=auth,
         ),
     )
@@ -129,7 +133,7 @@ def deploy_log_viewer_sse(lead_id: str, job: JobRecord) -> FT:
     )
 
 
-def job_progress(job: JobRecord) -> FT:
+def job_progress(job: JobRecord, log_text: str = "") -> FT:
     auth = operator_hx_headers()
     poll = job.status.value in {"queued", "running"}
     attrs: dict = {"id": f"job-progress-{job.job_id}"}
@@ -150,6 +154,7 @@ def job_progress(job: JobRecord) -> FT:
         "failed": "text-red-700",
         "cancelled": "text-amber-700",
     }.get(job.status.value, "text-slate-700")
+    insights = _log_insights(log_text)
     return Div(**attrs)(
         Card(
             Div(cls="flex justify-between items-start mb-2")(
@@ -167,5 +172,32 @@ def job_progress(job: JobRecord) -> FT:
             Progress(value=str(pct), max="100", cls="w-full"),
             P(f"{pct}% complete", cls="text-xs text-slate-500 mt-2"),
             _job_actions(job.lead_id, job),
+            Div(id=f"job-diagnosis-{job.job_id}", cls="mt-3"),
+            Div(cls="rounded border bg-amber-50 p-3 mt-4")(
+                H5("Failure intelligence", cls="font-semibold text-sm"),
+                P(
+                    "Relevant failure lines are extracted from the deployment terminal below.",
+                    cls="text-xs text-slate-600 mb-2",
+                ),
+                Ul(*[Li(line) for line in insights], cls="text-xs")
+                if insights
+                else P("No error lines found yet.", cls="text-xs"),
+            ),
+            Div(cls="mt-4")(
+                Div(cls="flex justify-between items-center mb-2")(
+                    H5("Deployment terminal", cls="font-semibold text-sm"),
+                    Span(
+                        "Auto-refreshing" if poll else "Final output",
+                        cls="text-xs text-slate-500",
+                    ),
+                ),
+                Pre(
+                    log_text or "(waiting for output...)",
+                    cls=(
+                        "text-xs bg-slate-900 text-green-200 p-3 rounded "
+                        "overflow-auto max-h-96 whitespace-pre-wrap"
+                    ),
+                ),
+            ),
         )
     )

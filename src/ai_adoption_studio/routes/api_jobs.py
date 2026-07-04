@@ -61,12 +61,12 @@ def register_api_job_routes(app, store: LeadStore, jobs: JobRunner) -> None:
             for lid in store._store.list_lead_ids():
                 try:
                     job = jobs.get_job(lid, job_id)
-                    return job_progress(job)
+                    return job_progress(job, jobs.tail_log(lid, job_id, tail=200))
                 except FileNotFoundError:
                     continue
             return {"success": False, "error": "Job not found"}
         job = jobs.get_job(lead_id, job_id)
-        return job_progress(job)
+        return job_progress(job, jobs.tail_log(lead_id, job_id, tail=200))
 
     @app.get("/api/jobs/{job_id}/log")
     async def job_log(job_id: str, lead_id: str = "", tail: int = 50):

@@ -307,8 +307,7 @@ async def _deploy_step(
                 cls=AlertT.info,
             )
         )
-        parts.append(job_progress(job))
-        parts.append(deploy_log_viewer(lead_id, job, jobs.tail_log(lead_id, job.job_id)))
+        parts.append(job_progress(job, jobs.tail_log(lead_id, job.job_id, tail=200)))
 
     auth = operator_hx_headers()
     if not state.active_jobs.deploy:

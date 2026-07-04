@@ -389,11 +389,15 @@ async def test_deploy_step_shows_active_job_progress(
     assert "Deployment progress" in html
     assert "Deploying lab stack via delivery validator." in html
     assert "25% complete" in html
-    assert "View latest log" in html
+    assert "Refresh terminal" in html
     assert "Download log" in html
     assert "Diagnose with Cursor" in html
     assert "Failure intelligence" in html
+    assert "Deployment terminal" in html
     assert "ERROR docker compose failed" in html
+    assert f'hx-target="#job-diagnosis-{job.job_id}"' in html
+    assert f'hx-target="#job-progress-{job.job_id}"' in html
+    assert "uk-btn uk-btn-secondary" in html
     assert "Start deploy" not in html
 
 
