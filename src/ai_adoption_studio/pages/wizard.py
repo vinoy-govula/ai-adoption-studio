@@ -114,6 +114,8 @@ async def handle_step_post(
             "logo_url": form.get("logo_url", ""),
             "public_url": form.get("public_url", ""),
             "ttl_days": int(form.get("ttl_days", 30) or 30),
+            "infrastructure_stage": form.get("infrastructure_stage", "playground"),
+            "use_edge_overlay": form.get("use_edge_overlay") == "true",
         }
         wizard.save_branding(lead_id, branding)
         from ai_adoption_studio.adapters.delivery_validator import DeploymentOrchestrator
@@ -177,7 +179,21 @@ async def handle_step_post(
         wizard.advance(lead_id, step_id)
 
     elif step_id == "ship_prep":
-        wizard.mark_ship_prep_viewed(lead_id)
+        ship_prep = {
+            "production_edge": form.get("production_edge", "customer-managed"),
+            "routing_model": form.get("routing_model", "path-based"),
+            "reference_configs_delivered": form.get("reference_configs_delivered") == "true",
+            "customer_edge_owner_identified": form.get("customer_edge_owner_identified") == "true",
+            "notes": form.get("notes", ""),
+        }
+        wizard.save_ship_prep(lead_id, ship_prep)
+        lead_dir = store._store.lead_dir(lead_id)
+        manifest_path = lead_dir / "playground-kit.manifest.json"
+        if manifest_path.exists():
+            from ai_adoption_studio.services.ship_prep import write_nginx_reference
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            write_nginx_reference(lead_dir, manifest)
         wizard.advance(lead_id, step_id)
 
     elif step_id == "cp4_approve":

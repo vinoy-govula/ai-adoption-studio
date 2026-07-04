@@ -309,6 +309,15 @@ class WizardService:
             self._write_state(lead_id, state)
             return state
 
+    def save_ship_prep(self, lead_id: str, ship_prep: dict[str, Any]) -> WorkflowState:
+        with _lead_lock(lead_id):
+            state = self.ensure_state(lead_id)
+            state.ship_prep = ship_prep
+            state.ship_prep_viewed = True
+            state = self._refresh_steps(lead_id, state)
+            self._write_state(lead_id, state)
+            return state
+
     def mark_ship_prep_viewed(self, lead_id: str) -> WorkflowState:
         with _lead_lock(lead_id):
             state = self.ensure_state(lead_id)

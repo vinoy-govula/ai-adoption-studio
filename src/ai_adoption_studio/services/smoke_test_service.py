@@ -30,6 +30,14 @@ class SmokeTestService:
         cap = capability or state.validation.test_capability
         user_prompt = prompt or state.validation.test_prompt
         base_url = gateway_url or settings.gateway_base_url
+        manifest_path = self._wizard._lead_dir(lead_id) / WizardService.MANIFEST_FILE
+        if manifest_path.exists() and gateway_url is None:
+            import json
+
+            from ai_adoption_studio.services.infrastructure_urls import resolve_urls
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            base_url = resolve_urls(manifest).gateway_base_url
 
         if not settings.platform_api_key:
             result = SmokeResult(status="failed", message="Configure STUDIO_PLATFORM_API_KEY")

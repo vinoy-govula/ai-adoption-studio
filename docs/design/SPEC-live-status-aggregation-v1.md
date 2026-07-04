@@ -18,8 +18,11 @@ Aggregate read-only health signals from Runtime, Gateway, Control Centre, and SD
 {
   "polled_at": "2026-06-21T10:00:00Z",
   "overall": "healthy|degraded|unhealthy|unknown",
+  "infrastructure_stage": "developer|playground|production_preview",
+  "edge_profile": "none|platform-overlay|customer-managed",
   "layers": {
     "runtime": { "status": "healthy", "summary": "...", "details": {} },
+    "edge": { "status": "healthy", "summary": "...", "details": {} },
     "gateway": { "status": "healthy", "summary": "...", "details": {} },
     "control_centre": { "status": "healthy", "summary": "...", "details": {} },
     "sdk": { "status": "unknown", "summary": "No smoke run yet", "details": {} }
@@ -40,6 +43,12 @@ Aggregate read-only health signals from Runtime, Gateway, Control Centre, and SD
 | Deployment status | RM deployment API if available | Optional v1 |
 | Preset / profile | From manifest `deployment.preset` | Static from artifact |
 | Model loaded | Gateway models or RM validate | Best-effort |
+
+### Edge (playground with platform overlay)
+
+| Signal | Source |
+|--------|--------|
+| Health | `GET {access.public_url}/healthz` via edge routing |
 
 ### Gateway
 
@@ -70,12 +79,13 @@ Aggregate read-only health signals from Runtime, Gateway, Control Centre, and SD
 
 ```python
 class StatusAggregator:
-    async def poll(self, lead_id: str, *, manifest: dict) -> StatusSnapshot: ...
+    async def poll(self, lead_id: str, *, manifest: dict | None = None) -> StatusSnapshot: ...
 ```
 
+Implementation: `services/infrastructure_urls.py` resolves poll targets from manifest. Developer stage uses direct `:8000` / `:8002`. Playground stage uses manifest URLs; edge layer polled when `edge_profile` is `platform-overlay`.
+
 - Parallel `httpx` requests with 5s timeout
-- Cache last good snapshot per lead (60s TTL)
-- `overall`: unhealthy if Gateway down; degraded if any layer unhealthy
+- `overall`: unhealthy if Gateway or edge down; degraded if any other layer unhealthy
 
 ---
 
@@ -103,8 +113,11 @@ If 3 consecutive polls fail:
 
 From `playground-kit.manifest.json`:
 
-- `access.public_url` — Gateway base for polls
-- `deployment.preset` — Runtime row label
+- `access.public_url` — customer-facing base URL for polls and SDK smoke
+- `access.control_centre_path` — CC path prefix when using edge routing
+- `deployment.infrastructure_stage` — developer / playground / production_preview
+- `deployment.edge_profile` — none / platform-overlay / customer-managed
+- `deployment.playground_preset` — Runtime row label
 - `deployment.rate_limit` — Gateway row detail
 - `client.display_name` — wizard page title
 

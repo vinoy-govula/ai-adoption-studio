@@ -22,12 +22,20 @@ class DeploymentOrchestrator:
             return ["uv", "run", script, *args]
         return ["uv", "run", script, *args]
 
-    def _env(self, capability: str | None = None) -> dict[str, str]:
+    def _env(self, capability: str | None = None, manifest_path: Path | None = None) -> dict[str, str]:
+        import json
         import os
+
+        from ai_adoption_studio.services.infrastructure_urls import resolve_urls
 
         env = os.environ.copy()
         env["RUNTIME_MANAGER_BASE_URL"] = settings.runtime_manager_base_url
-        env["AI_PLATFORM_BASE_URL"] = settings.gateway_base_url
+        gateway_base = settings.gateway_base_url
+        if manifest_path and manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            gateway_base = resolve_urls(manifest).gateway_base_url
+        env["AI_PLATFORM_BASE_URL"] = gateway_base
+        env["DEPLOYMENT_CATALOG_ROOT"] = str(settings.deployment_catalog_root.resolve())
         if settings.platform_api_key:
             env["AI_PLATFORM_API_KEY"] = settings.platform_api_key
         if capability:
@@ -58,6 +66,8 @@ class DeploymentOrchestrator:
             "--runtime-manager-url",
             settings.runtime_manager_base_url,
         )
+        if branding.get("public_url"):
+            cmd.extend(["--public-url", str(branding["public_url"])])
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(self._root),
@@ -91,6 +101,8 @@ class DeploymentOrchestrator:
             str(manifest_path),
             "--staging-dir",
             str(staging_dir),
+            "--deployment-catalog-root",
+            str(settings.deployment_catalog_root),
         )
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("ab") as log_file:
@@ -99,7 +111,7 @@ class DeploymentOrchestrator:
                 cwd=str(self._root),
                 stdout=log_file,
                 stderr=asyncio.subprocess.STDOUT,
-                env=self._env(),
+                env=self._env(manifest_path=manifest_path),
             )
             return await proc.wait()
 
@@ -127,7 +139,7 @@ class DeploymentOrchestrator:
                 cwd=str(self._root),
                 stdout=log_file,
                 stderr=asyncio.subprocess.STDOUT,
-                env=self._env(capability),
+                env=self._env(capability, manifest_path=manifest_path),
             )
             exit_code = await proc.wait()
         report_path = output_dir / "deployment-report.json"

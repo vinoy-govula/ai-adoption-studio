@@ -102,9 +102,12 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 **As** an adoption engineer, **I want** to configure branding and generate playground manifest **so that** lab deploy has canonical config.
 
 **Acceptance criteria:**
-- Form: logo URL/path, welcome message, demo prompts, public URL slug, TTL
-- Preview `playground-kit.manifest.json` against schema
-- Generate via RM kit builder / `delivery-generate-kit`
+- Infrastructure stage selector: Developer / Playground / Production preview
+- Optional edge overlay checkbox (Playground)
+- Path contract panel (`/api/v1`, `/control-centre`, `/healthz`)
+- Form: logo URL, welcome message, public URL, TTL
+- Generate via RM kit builder / `delivery-generate-kit` with `--public-url`
+- Manifest includes `deployment.infrastructure_stage` and `deployment.edge_profile`
 - Save manifest to lead artifact dir
 
 ---
@@ -115,8 +118,9 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 
 **Acceptance criteria:**
 - Requires cp2 approved
-- Shows env prerequisites checklist (platform stack, API key)
-- Triggers deploy job; streams logs in LogPanel
+- Shows stage-specific prerequisites checklist (Gateway + CC health at manifest URLs)
+- Triggers deploy job (platform stack from deployment-catalog when playground + edge overlay, then runtime compose)
+- Streams logs in LogPanel
 - Updates manifest status: `deploying` → `active` or `failed`
 - On failure: link to Cursor troubleshoot panel
 
@@ -128,9 +132,10 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 
 **Acceptance criteria:**
 - Poll every 10s while on step (configurable)
-- Per-layer: health, last check time, error detail
+- Per-layer: Runtime, Edge (when overlay), Gateway, CC, SDK
+- URLs resolved from manifest via `infrastructure_urls` helper
 - SDK row reflects last smoke test if run
-- Stale indicator if poll fails 3× consecutive
+- Infrastructure stage and edge profile shown in banner
 
 ---
 
@@ -170,7 +175,7 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 **Acceptance criteria:**
 - Checklist items from validation-suite-spec manual section
 - Toggle each item; optional notes
-- Deep link to Control Centre (`http://localhost:8002` or manifest URL)
+- Deep link to Control Centre from manifest (`{public_url}{control_centre_path}` or direct `:8002` in developer stage)
 - Persists to `deployment-report.json` → `manual_control_centre_checks`
 
 ---
@@ -191,7 +196,13 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 **As** a delivery lead, **I want** ship checklist and cp4 **so that** handover is gated.
 
 **Acceptance criteria:**
-- Production profile/model summary from assessment
+- Journey recap: playground URL, lab infrastructure stage, production target from assessment
+- Production edge decision (customer-managed vs platform overlay)
+- Routing model (path-based vs separate hostnames)
+- Links to deployment-catalog customer-managed reference configs
+- Parity note from manifest
+- Operator attestation: reference configs delivered, edge owner identified
+- Writes tailored `ship-prep/nginx.reference.conf` on step completion
 - cp4 approval capture
 - Export pipeline CSV from wizard
 

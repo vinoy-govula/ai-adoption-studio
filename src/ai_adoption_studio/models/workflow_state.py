@@ -97,6 +97,7 @@ class WorkflowState(BaseModel):
     cp3_checklist_complete: bool = False
     cp3_override_reason: str = ""
     ship_prep_viewed: bool = False
+    ship_prep: dict[str, Any] = Field(default_factory=dict)
 
     def step_meta(self) -> list[dict[str, str]]:
         return [

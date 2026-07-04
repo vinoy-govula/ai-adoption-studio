@@ -25,6 +25,7 @@ def status_grid(lead_id: str, snapshot: StatusSnapshot, *, poll: bool = True) ->
     cards = []
     labels = {
         "runtime": "Runtime Manager",
+        "edge": "Edge routing",
         "gateway": "Gateway",
         "control_centre": "Control Centre",
         "sdk": "SDK smoke",
@@ -45,6 +46,12 @@ def status_grid(lead_id: str, snapshot: StatusSnapshot, *, poll: bool = True) ->
     banner = []
     if snapshot.overall != "healthy":
         banner.append(Alert(f"Overall: {snapshot.overall}", cls=AlertT.warning))
+    banner.append(
+        P(
+            f"Infrastructure: {snapshot.infrastructure_stage} · edge: {snapshot.edge_profile}",
+            cls="text-xs text-slate-500 mb-2",
+        )
+    )
 
     return Div(**attrs)(
         *banner,

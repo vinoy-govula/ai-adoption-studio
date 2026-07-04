@@ -76,11 +76,18 @@ async def render_step(
     elif step_id == "validate":
         parts.append(await _validate_step(lead_id, wizard, jobs, store))
     elif step_id == "manual_cc":
-        parts.append(_manual_cc_step(lead_id))
+        from ai_adoption_studio.services.infrastructure_urls import resolve_urls
+
+        manifest_path = store._store.lead_dir(lead_id) / "playground-kit.manifest.json"
+        manifest = None
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        cc_url = resolve_urls(manifest).control_centre_url
+        parts.append(_manual_cc_step(lead_id, cc_url=cc_url))
     elif step_id == "cp3_approve":
         parts.append(_cp3_step(lead_id, store))
     elif step_id == "ship_prep":
-        parts.append(_ship_prep(lead_id, store))
+        parts.append(_ship_prep(lead_id, store, state))
     elif step_id == "cp4_approve":
         parts.append(_cp4_step(lead_id, store))
     elif step_id == "export":
@@ -186,14 +193,44 @@ async def _deploy_step(
     jobs: JobRunner,
     store: LeadStore,
 ) -> FT:
+    from ai_adoption_studio.services.infrastructure_urls import resolve_urls
+
     manifest_path = store._store.lead_dir(lead_id) / "playground-kit.manifest.json"
+    manifest = None
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    urls = resolve_urls(manifest)
+
+    gateway_ok = False
+    cc_ok = False
+    if manifest_path.exists():
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                gw = await client.get(urls.gateway_health_url)
+                gateway_ok = gw.status_code == 200
+                cc = await client.get(urls.control_centre_health_url)
+                cc_ok = cc.status_code == 200
+        except httpx.HTTPError:
+            pass
+
     checks = [
         ("cp2 approved", wizard._cp2_approved(lead_id)),
         ("Manifest exists", manifest_path.exists()),
         ("Platform API key set", bool(settings.platform_api_key)),
+        (f"Gateway reachable ({urls.gateway_health_url})", gateway_ok),
+        (f"Control Centre reachable ({urls.control_centre_health_url})", cc_ok),
     ]
     checklist = Ul(*[Li(f"{'✓' if ok else '✗'} {label}") for label, ok in checks])
-    parts: list[FT] = [H4("Prerequisites"), checklist]
+    parts: list[FT] = [
+        H4("Prerequisites"),
+        P(
+            f"Infrastructure stage: {urls.infrastructure_stage} · edge: {urls.edge_profile}",
+            cls="text-sm text-slate-600",
+        ),
+        checklist,
+    ]
 
     state = wizard.get_state(lead_id)
     if state.active_jobs.deploy:
@@ -267,12 +304,12 @@ async def _validate_step(
     return Div(*parts)
 
 
-def _manual_cc_step(lead_id: str) -> FT:
+def _manual_cc_step(lead_id: str, *, cc_url: str) -> FT:
     report = validation_ui_service.ensure_manual_checks(lead_id)
     return manual_checklist(
         lead_id,
         report.get("manual_control_centre_checks", []),
-        settings.control_centre_base_url,
+        cc_url,
     )
 
 
@@ -288,17 +325,101 @@ def _cp3_step(lead_id: str, store: LeadStore) -> FT:
     )
 
 
-def _ship_prep(lead_id: str, store: LeadStore) -> FT:
+def _ship_prep(lead_id: str, store: LeadStore, state: WorkflowState) -> FT:
+    from ai_adoption_studio.services.ship_prep import CUSTOMER_EDGE_REFERENCES
+
     report = store.get_assessment_report(lead_id)
+    internal = store.get_internal_responses(lead_id) or {}
+    manifest_path = store._store.lead_dir(lead_id) / "playground-kit.manifest.json"
+    manifest = {}
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
     rec = (report or {}).get("recommendation", {})
+    deployment = manifest.get("deployment", {})
+    access = manifest.get("access", {})
+    production = deployment.get("production_target", {})
+    ship = state.ship_prep or {}
+    parity = deployment.get("parity_note", "No parity note in manifest.")
+
+    ref_items = [
+        Li(f"{name}: {path}") for name, path in CUSTOMER_EDGE_REFERENCES
+    ]
+
     return _auth_form(
         lead_id,
         "ship_prep",
-        P("Review production deployment mapping before handover."),
+        H4("Stage 3 — Production handover", cls="font-semibold"),
+        P(
+            "The platform fits into customer infrastructure. Select production edge "
+            "approach and confirm reference materials are delivered.",
+            cls="text-sm text-slate-600 mb-3",
+        ),
+        Card(
+            H5("Journey recap", cls="font-semibold text-sm"),
+            Ul(
+                Li(f"Playground URL: {access.get('public_url', 'n/a')}"),
+                Li(f"Lab infrastructure stage: {deployment.get('infrastructure_stage', 'n/a')}"),
+                Li(f"Lab edge profile: {deployment.get('edge_profile', 'n/a')}"),
+            ),
+            cls="bg-slate-50 p-3 mb-4",
+        ),
         Ul(
             Li(f"Recommended pack: {rec.get('recommended_pack', 'n/a')}"),
-            Li(f"Deployment target: internal assessment responses"),
+            Li(f"Production profile: {production.get('profile', 'n/a')}"),
+            Li(f"Production model: {production.get('model', 'n/a')}"),
+            Li(f"Deployment target: {internal.get('deployment_target', 'n/a')}"),
         ),
+        P(parity, cls="text-sm text-slate-600 my-3"),
+        H5("Production edge decision", cls="font-semibold text-sm mt-2"),
+        Div(cls="flex flex-col gap-2 mb-3")(
+            LabelRadio(
+                "Customer-managed edge (nginx, F5, Azure AG, AWS ALB, Traefik, Caddy)",
+                name="production_edge",
+                value="customer-managed",
+                checked=ship.get("production_edge", "customer-managed") == "customer-managed",
+            ),
+            LabelRadio(
+                "Platform optional edge overlay (smaller production)",
+                name="production_edge",
+                value="platform-overlay",
+                checked=ship.get("production_edge") == "platform-overlay",
+            ),
+        ),
+        H5("Routing model", cls="font-semibold text-sm mt-2"),
+        Div(cls="flex flex-col gap-2 mb-3")(
+            LabelRadio(
+                "Path-based (default playground contract)",
+                name="routing_model",
+                value="path-based",
+                checked=ship.get("routing_model", "path-based") == "path-based",
+            ),
+            LabelRadio(
+                "Separate hostnames (api.* + console.*)",
+                name="routing_model",
+                value="separate-hostnames",
+                checked=ship.get("routing_model") == "separate-hostnames",
+            ),
+        ),
+        H5("Reference configurations", cls="font-semibold text-sm mt-2"),
+        Ul(*ref_items, cls="text-sm mb-3"),
+        P(
+            "On Next, a tailored nginx.reference.conf is written to ship-prep/ in the lead folder.",
+            cls="text-xs text-slate-500 mb-3",
+        ),
+        LabelCheckboxX(
+            "Reference routing configs delivered to customer",
+            name="reference_configs_delivered",
+            value="true",
+            checked=bool(ship.get("reference_configs_delivered")),
+        ),
+        LabelCheckboxX(
+            "Customer edge owner identified",
+            name="customer_edge_owner_identified",
+            value="true",
+            checked=bool(ship.get("customer_edge_owner_identified")),
+        ),
+        LabelTextArea("Notes", name="notes", value=ship.get("notes", "")),
     )
 
 

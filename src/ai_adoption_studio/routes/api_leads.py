@@ -72,7 +72,7 @@ def register_api_lead_routes(app, store: LeadStore, wizard: WizardService, jobs:
             log_path = lead_dir / "jobs" / f"{job.job_id}.log"
             code = await orchestrator.deploy_lab(
                 manifest_path,
-                lead_dir / "staging",
+                lead_dir,
                 job_id=job.job_id,
                 log_path=log_path,
             )
