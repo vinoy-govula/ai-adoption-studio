@@ -7,7 +7,7 @@ from typing import Any
 from fasthtml.common import *  # noqa: F403
 from monsterui.all import *  # noqa: F403
 
-from ai_adoption_studio.config import settings
+from ai_adoption_studio.components.htmx import operator_hx_headers
 from ai_adoption_studio.models.workflow_state import ValidationState, SmokeResult
 
 
@@ -18,7 +18,7 @@ def capability_picker(
     smoke: SmokeResult | None = None,
     error: str = "",
 ) -> FT:
-    auth = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
+    auth = operator_hx_headers()
     if not capabilities:
         caps = [("chat", "Chat (default)")]
     else:
@@ -44,7 +44,16 @@ def capability_picker(
         LabelTextArea("Test prompt", name="test_prompt", value=validation.test_prompt),
         smoke_alert,
         Div(cls="flex gap-2 mt-4")(
-            Button("Quick smoke test", cls=ButtonT.secondary, hx_post=f"/api/leads/{lead_id}/smoke-test", hx_include="#step-form-llm_test_select", hx_target="#smoke-result", hx_swap="innerHTML", hx_headers=auth),
+            Button(
+                "Quick smoke test",
+                cls=ButtonT.secondary,
+                type="button",
+                hx_post=f"/api/leads/{lead_id}/smoke-test",
+                hx_include="#step-form-llm_test_select",
+                hx_target="#smoke-result",
+                hx_swap="innerHTML",
+                hx_headers=auth,
+            ),
             Div(id="smoke-result"),
         ),
     )

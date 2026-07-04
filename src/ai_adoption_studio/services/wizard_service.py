@@ -10,7 +10,6 @@ from typing import Any
 
 from ai_runtime_manager.assessment.checkpoints import checkpoint_status
 
-from ai_adoption_studio.config import settings
 from ai_adoption_studio.models.workflow_state import (
     STEP_ORDER,
     StepRecord,
@@ -148,8 +147,6 @@ class WizardService:
     def _refresh_steps(self, lead_id: str, state: WorkflowState) -> WorkflowState:
         for step_id in STEP_ORDER:
             existing = state.steps.get(step_id)
-            if existing and existing.status == StepStatus.LOCKED:
-                continue
             computed = self._compute_step_status(lead_id, step_id, state)
             if existing and existing.status == StepStatus.COMPLETE:
                 continue

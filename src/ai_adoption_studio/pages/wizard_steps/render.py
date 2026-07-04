@@ -1,9 +1,9 @@
 """Wizard step content renderers."""
+# ruff: noqa: F405
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from fasthtml.common import *  # noqa: F403
@@ -16,6 +16,7 @@ from ai_adoption_studio.components.cursor_assist_panel import cursor_assist_pane
 from ai_adoption_studio.components.deploy_log_viewer import deploy_log_viewer, job_progress
 from ai_adoption_studio.components.dynamic_form import dynamic_form
 from ai_adoption_studio.components.goal_banner import goal_banner
+from ai_adoption_studio.components.htmx import operator_hx_headers
 from ai_adoption_studio.components.manual_checklist import manual_checklist
 from ai_adoption_studio.components.nav_buttons import step_nav
 from ai_adoption_studio.components.recommendation_card import recommendation_card
@@ -33,6 +34,37 @@ from ai_adoption_studio.services.wizard_service import WizardService
 CURSOR_STEPS = {"deploy_lab", "live_status", "llm_test_select", "validate", "manual_cc", "cp3_approve"}
 
 
+_START_DEPLOY_SCRIPT = (
+    "this.innerText='Starting deploy...';"
+    "this.classList.add('opacity-75');"
+    "const target=document.querySelector('#deploy-action-feedback');"
+    "if(target){target.innerText='Creating deployment job. Progress and logs will appear below.';}"
+)
+
+
+def _prerequisite_item(
+    label: str,
+    ok: bool,
+    meaning: str,
+    fix_hint: str,
+) -> FT:
+    status = "Ready" if ok else "Needs attention"
+    status_cls = "text-green-700" if ok else "text-amber-700"
+    return Li(cls="border rounded-md p-3 bg-white")(
+        Div(cls="flex items-start gap-3")(
+            Span("✓" if ok else "✗", cls=f"font-semibold {status_cls}"),
+            Div(
+                Div(cls="flex flex-wrap items-baseline gap-2")(
+                    Strong(label),
+                    Span(status, cls=f"text-xs font-semibold {status_cls}"),
+                ),
+                P(meaning, cls="text-sm text-slate-600 mt-1"),
+                P(f"How to resolve: {fix_hint}", cls="text-xs text-slate-500 mt-1"),
+            ),
+        )
+    )
+
+
 async def render_step(
     lead_id: str,
     step_id: str,
@@ -45,7 +77,6 @@ async def render_step(
 ) -> FT:
     state = wizard.get_state(lead_id)
     eoi = store.get_eoi(lead_id)
-    org = eoi.get("responses", {}).get("org_name", lead_id)
     parts: list[FT] = [goal_banner(step_id)]
     if message:
         parts.append(Alert(message, cls=AlertT.success))
@@ -100,7 +131,7 @@ async def render_step(
 
 
 def _auth_form(lead_id: str, step_id: str, *fields: FT) -> FT:
-    auth = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
+    auth = operator_hx_headers()
     return Form(
         id=f"step-form-{step_id}",
         hx_post=f"/wizard/{lead_id}/{step_id}",
@@ -117,6 +148,11 @@ def _eoi_review(lead_id: str, eoi: dict[str, Any]) -> FT:
         lead_id,
         "eoi_review",
         P(f"Pipeline status: {eoi.get('pipeline_status', 'new')}"),
+        Alert(
+            "Review these details with the customer. If anything has changed, edit the EOI before continuing.",
+            cls=AlertT.info,
+        ),
+        A("Edit EOI", href=f"/eoi/{lead_id}", cls=ButtonT.secondary),
         Table(cls="w-full text-sm mb-4")(Tbody(*rows)),
         LabelCheckboxX("I have reviewed this EOI", name="acknowledged", value="true"),
     )
@@ -215,19 +251,48 @@ async def _deploy_step(
         except httpx.HTTPError:
             pass
 
-    checks = [
-        ("cp2 approved", wizard._cp2_approved(lead_id)),
-        ("Manifest exists", manifest_path.exists()),
-        ("Platform API key set", bool(settings.platform_api_key)),
-        (f"Gateway reachable ({urls.gateway_health_url})", gateway_ok),
-        (f"Control Centre reachable ({urls.control_centre_health_url})", cc_ok),
-    ]
-    checklist = Ul(*[Li(f"{'✓' if ok else '✗'} {label}") for label, ok in checks])
+    checklist = Ul(cls="space-y-2")(
+        _prerequisite_item(
+            "CP2 client approval recorded",
+            wizard._cp2_approved(lead_id),
+            "Confirms the customer has approved the assessment and recommendation before any lab deployment work starts.",
+            "Complete the Client approval step with approver details.",
+        ),
+        _prerequisite_item(
+            "Playground manifest exists",
+            manifest_path.exists(),
+            "Confirms the Playground Kit step generated the deployment manifest used by the delivery validator.",
+            "Return to Playground Kit and generate the manifest.",
+        ),
+        _prerequisite_item(
+            "Platform API key configured",
+            bool(settings.platform_api_key),
+            "Allows validation and smoke tests to call the Gateway using the same credential path an operator will use.",
+            "Set STUDIO_PLATFORM_API_KEY in the Studio .env file and restart Studio.",
+        ),
+        _prerequisite_item(
+            f"Gateway health endpoint reachable ({urls.gateway_health_url})",
+            gateway_ok,
+            "Confirms the AI Gateway is running and can receive SDK-compatible API traffic for the lab.",
+            "Start or fix the Gateway service, then verify its health endpoint returns 200.",
+        ),
+        _prerequisite_item(
+            f"Control Centre health endpoint reachable ({urls.control_centre_health_url})",
+            cc_ok,
+            "Confirms the operator console is reachable for monitoring, audit review, and manual checks after deploy.",
+            "Start or fix Control Centre, then verify its health endpoint returns 200.",
+        ),
+    )
     parts: list[FT] = [
         H4("Prerequisites"),
         P(
             f"Infrastructure stage: {urls.infrastructure_stage} · edge: {urls.edge_profile}",
             cls="text-sm text-slate-600",
+        ),
+        P(
+            "These checks explain why the Deploy button may work, block, or need operator follow-up. "
+            "Deployment can start only when the core artifacts and platform services are ready.",
+            cls="text-sm text-slate-600 mb-3",
         ),
         checklist,
     ]
@@ -235,26 +300,43 @@ async def _deploy_step(
     state = wizard.get_state(lead_id)
     if state.active_jobs.deploy:
         job = jobs.get_job(lead_id, state.active_jobs.deploy)
+        parts.append(
+            Alert(
+                f"Deployment job {job.job_id} is {job.status.value}. "
+                "This panel refreshes automatically while the job runs.",
+                cls=AlertT.info,
+            )
+        )
         parts.append(job_progress(job))
         parts.append(deploy_log_viewer(lead_id, job, jobs.tail_log(lead_id, job.job_id)))
 
-    auth = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
-    parts.append(
-        Button(
-            "Start deploy",
-            cls=ButtonT.primary,
-            hx_post=f"/api/leads/{lead_id}/deploy",
-            hx_target="#step-content",
-            hx_swap="innerHTML",
-            hx_headers=auth,
+    auth = operator_hx_headers()
+    if not state.active_jobs.deploy:
+        parts.append(
+            Div(
+                Button(
+                    "Start deploy",
+                    cls=ButtonT.primary,
+                    type="button",
+                    hx_post=f"/api/leads/{lead_id}/deploy",
+                    hx_target="#step-content",
+                    hx_swap="innerHTML",
+                    hx_headers=auth,
+                    onclick=_START_DEPLOY_SCRIPT,
+                ),
+                P(
+                    "",
+                    id="deploy-action-feedback",
+                    cls="text-sm text-blue-700 mt-2",
+                ),
+            )
         )
-    )
-    return Div(*parts)
+    return _auth_form(lead_id, "deploy_lab", *parts)
 
 
 async def _live_status(lead_id: str) -> FT:
     snapshot = await status_aggregator.poll(lead_id)
-    return status_grid(lead_id, snapshot)
+    return _auth_form(lead_id, "live_status", status_grid(lead_id, snapshot))
 
 
 async def _llm_test(lead_id: str, state: WorkflowState) -> FT:
@@ -290,18 +372,19 @@ async def _validate_step(
         parts.append(job_progress(job))
         parts.append(deploy_log_viewer(lead_id, job, jobs.tail_log(lead_id, job.job_id)))
 
-    auth = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
+    auth = operator_hx_headers()
     parts.append(
         Button(
             "Run full validation",
             cls=ButtonT.primary,
+            type="button",
             hx_post=f"/api/leads/{lead_id}/validate",
             hx_target="#step-content",
             hx_swap="innerHTML",
             hx_headers=auth,
         )
     )
-    return Div(*parts)
+    return _auth_form(lead_id, "validate", *parts)
 
 
 def _manual_cc_step(lead_id: str, *, cc_url: str) -> FT:

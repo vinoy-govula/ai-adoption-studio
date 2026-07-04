@@ -5,12 +5,12 @@ from __future__ import annotations
 from fasthtml.common import *  # noqa: F403
 from monsterui.all import *  # noqa: F403
 
-from ai_adoption_studio.config import settings
+from ai_adoption_studio.components.htmx import operator_hx_headers
 from ai_adoption_studio.services.status_aggregator import StatusSnapshot
 
 
 def status_grid(lead_id: str, snapshot: StatusSnapshot, *, poll: bool = True) -> FT:
-    auth = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
+    auth = operator_hx_headers()
     attrs = {"id": "status-grid"}
     if poll:
         attrs.update(

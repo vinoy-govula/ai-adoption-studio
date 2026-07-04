@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from fasthtml.common import *  # noqa: F403
-from monsterui.all import *  # noqa: F403
+from fasthtml.common import Div, FT, H3, P
+from monsterui.all import Card
 
 
 STEP_GOALS: dict[str, tuple[str, str, str]] = {
@@ -36,5 +36,5 @@ def goal_banner(step_id: str) -> FT:
                 P(f"Approver: {approver}"),
             ),
         ),
-        cls="mb-4",
+        cls="sticky top-0 z-20 mb-4 bg-white shadow-sm",
     )

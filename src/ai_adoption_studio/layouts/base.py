@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
-from fasthtml.common import *  # noqa: F403
-from monsterui.all import *  # noqa: F403
+from fasthtml.common import A, Aside, Body, Div, FT, H1, H2, Head, Html, Main, Meta, Nav, P, Script, Title
+from monsterui.all import Container, Theme
 
 from ai_adoption_studio import __version__
+from ai_adoption_studio.components.htmx import operator_hx_headers
+
+
+def wizard_link(label: str, lead_id: str, *, cls: str = "") -> FT:
+    """Navigate to the protected wizard with the internal operator auth header."""
+    href = f"/wizard/{lead_id}"
+    return A(
+        label,
+        href=href,
+        hx_boost="true",
+        hx_headers=operator_hx_headers(),
+        cls=cls,
+    )
 
 
 def theme_headers():
-    return Theme.slate.headers(highlightjs=True)
+    return (
+        *Theme.slate.headers(highlightjs=True),
+        Script(src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"),
+        # htmx SSE extension for the read-only streaming operator console.
+        Script(src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.3/dist/sse.js"),
+    )
 
 
 def sidebar(active: str, *, lead_id: str | None = None) -> FT:
@@ -29,7 +47,7 @@ def sidebar(active: str, *, lead_id: str | None = None) -> FT:
         nav_items.append(
             Div(cls="mt-4 pt-4 border-t border-slate-700")(
                 P(f"Lead: {lead_id}", cls="text-xs text-slate-400 mb-2"),
-                A("Wizard", href=f"/wizard/{lead_id}", cls="block py-2 px-3 rounded text-sm"),
+                wizard_link("Wizard", lead_id, cls="block py-2 px-3 rounded text-sm"),
             )
         )
 
@@ -65,8 +83,8 @@ def wizard_layout(
     return Html(
         Head(Title(title), Meta(charset="utf-8"), Meta(name="viewport", content="width=device-width"), *theme_headers()),
         Body(cls="flex min-h-screen bg-slate-50")(
-            Div(id="wizard-stepper", cls="shrink-0")(stepper),
-            Main(cls="flex-1 p-6")(
+            Div(id="wizard-stepper", cls="fixed inset-y-0 left-0 z-10 w-56")(stepper),
+            Main(cls="flex-1 p-6 ml-56")(
                 header,
                 Div(id="step-content")(step_content),
             ),

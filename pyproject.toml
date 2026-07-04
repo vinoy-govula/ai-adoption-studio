@@ -20,6 +20,9 @@ dependencies = [
 ai-runtime-manager = { path = "../ai-runtime-manager", editable = true }
 ai-platform = { path = "../ai-platform-sdk", editable = true }
 
+[project.scripts]
+studio = "ai_adoption_studio.ops.orchestrator:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",

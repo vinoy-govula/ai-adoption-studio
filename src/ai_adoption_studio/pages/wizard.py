@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from fasthtml.common import Div, FT
 from fasthtml.common import *  # noqa: F403
 
 from ai_adoption_studio.components.stepper import wizard_stepper
@@ -52,6 +53,51 @@ async def wizard_page(
     return wizard_layout(f"Wizard — {org}", lead_id, stepper, content, org_name=org)
 
 
+async def wizard_step_partial(
+    lead_id: str,
+    step_id: str | None,
+    *,
+    store: LeadStore,
+    wizard: WizardService,
+    jobs: JobRunner,
+    message: str = "",
+    errors: dict[str, list[str]] | None = None,
+    include_stepper: bool = False,
+) -> FT:
+    state = wizard.ensure_state(lead_id)
+    current = step_id or state.current_step
+    if current not in STEP_ORDER:
+        current = state.current_step
+    try:
+        wizard.goto_step(lead_id, current)
+        state = wizard.get_state(lead_id)
+    except ValueError:
+        current = state.current_step
+
+    content = await render_step(
+        lead_id,
+        current,
+        store=store,
+        wizard=wizard,
+        jobs=jobs,
+        message=message,
+        errors=errors,
+    )
+    if not include_stepper:
+        return content
+
+    stepper = wizard_stepper(lead_id, state.step_meta(), current)
+    return Div(
+        content,
+        Div(
+            stepper,
+            id="wizard-stepper",
+            cls="fixed inset-y-0 left-0 z-10 w-56",
+            hx_swap_oob="outerHTML",
+        ),
+    )
+
+
 async def handle_step_post(
     lead_id: str,
     step_id: str,
@@ -60,13 +106,31 @@ async def handle_step_post(
     store: LeadStore,
     wizard: WizardService,
     jobs: JobRunner,
+    include_stepper: bool = False,
 ) -> FT:
     message = ""
     errors: dict[str, list[str]] | None = None
 
+    async def _render(
+        current_step: str,
+        *,
+        message: str = "",
+        errors: dict[str, list[str]] | None = None,
+    ) -> FT:
+        return await wizard_step_partial(
+            lead_id,
+            current_step,
+            store=store,
+            wizard=wizard,
+            jobs=jobs,
+            message=message,
+            errors=errors,
+            include_stepper=include_stepper,
+        )
+
     if step_id == "eoi_review":
         if form.get("acknowledged") != "true":
-            return await render_step(lead_id, step_id, store=store, wizard=wizard, jobs=jobs, message="Acknowledge EOI to continue.")
+            return await _render(step_id, message="Acknowledge EOI to continue.")
         wizard.advance(lead_id, step_id)
 
     elif step_id == "qualify":
@@ -79,7 +143,7 @@ async def handle_step_post(
         raw = {k: v for k, v in form.items() if k not in {"step_id"}}
         errors = form_validator.validate(qs, raw)
         if errors:
-            return await render_step(lead_id, step_id, store=store, wizard=wizard, jobs=jobs, errors=errors)
+            return await _render(step_id, errors=errors)
         internal = form_validator.coerce(qs, raw)
         store.save_internal_responses(lead_id, internal)
         wizard.advance(lead_id, step_id)
@@ -87,7 +151,7 @@ async def handle_step_post(
     elif step_id == "assessment_run":
         internal = store.get_internal_responses(lead_id)
         if not internal:
-            return await render_step(lead_id, step_id, store=store, wizard=wizard, jobs=jobs, message="Complete questionnaire first.")
+            return await _render(step_id, message="Complete questionnaire first.")
         await run_assessment(store, lead_id, internal)
         wizard.advance(lead_id, step_id)
 
@@ -135,7 +199,20 @@ async def handle_step_post(
             )
             message = "Manifest generated."
         except Exception as exc:
-            return await render_step(lead_id, step_id, store=store, wizard=wizard, jobs=jobs, message=str(exc))
+            return await _render(step_id, message=str(exc))
+        wizard.advance(lead_id, step_id)
+
+    elif step_id == "deploy_lab":
+        if not wizard._manifest_active(lead_id):
+            return await _render(step_id, message="Start deploy before continuing.")
+        wizard.advance(lead_id, step_id)
+
+    elif step_id == "live_status":
+        if not wizard._manifest_active(lead_id):
+            return await _render(
+                step_id,
+                message="Wait for the lab deployment to become active before continuing.",
+            )
         wizard.advance(lead_id, step_id)
 
     elif step_id == "llm_test_select":
@@ -154,6 +231,11 @@ async def handle_step_post(
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         wizard.advance(lead_id, step_id)
 
+    elif step_id == "validate":
+        if not validation_ui_service.load_report(lead_id):
+            return await _render(step_id, message="Run full validation before continuing.")
+        wizard.advance(lead_id, step_id)
+
     elif step_id == "manual_cc":
         report = validation_ui_service.ensure_manual_checks(lead_id)
         checks = []
@@ -164,9 +246,23 @@ async def handle_step_post(
         validation_ui_service.save_manual_checks(lead_id, checks)
         complete = validation_ui_service.checklist_complete(lead_id)
         wizard.set_checklist_complete(lead_id, complete)
+        if not complete:
+            return await _render(
+                step_id,
+                message="Complete Control Centre checks before continuing.",
+            )
         wizard.advance(lead_id, step_id)
 
     elif step_id == "cp3_approve":
+        deployment_report = validation_ui_service.load_report(lead_id)
+        state = wizard.get_state(lead_id)
+        if not deployment_report or deployment_report.get("status") != "passed":
+            return await _render(step_id, message="Validation must pass before lab sign-off.")
+        if not state.cp3_checklist_complete:
+            return await _render(
+                step_id,
+                message="Complete Control Centre checks before lab sign-off.",
+            )
         report = store.get_assessment_report(lead_id)
         if report:
             updated = approve_checkpoint(
@@ -215,4 +311,4 @@ async def handle_step_post(
         wizard.advance(lead_id, step_id)
 
     state = wizard.get_state(lead_id)
-    return await render_step(lead_id, state.current_step, store=store, wizard=wizard, jobs=jobs, message=message)
+    return await _render(state.current_step, message=message)

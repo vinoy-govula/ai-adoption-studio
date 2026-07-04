@@ -1,4 +1,5 @@
 """Cursor agent API routes."""
+# ruff: noqa: F405
 
 from __future__ import annotations
 
@@ -8,7 +9,13 @@ from monsterui.all import *  # noqa: F403
 from ai_adoption_studio.adapters.cursor_agent import CursorAgentBridge
 from ai_adoption_studio.services.certification_service import CertificationService
 from ai_adoption_studio.services.store import LeadStore
-from ai_adoption_studio.services.validation_ui_service import validation_ui_service
+
+
+VERDICT_EXPLANATIONS = {
+    "pass": "Cursor Assist found enough evidence to proceed without additional conditions.",
+    "conditional": "The deployment can continue, but listed conditions should be cleared before lab sign-off.",
+    "fail": "A blocking issue was found. Resolve the findings before continuing the deployment workflow.",
+}
 
 
 def register_api_cursor_routes(
@@ -20,10 +27,43 @@ def register_api_cursor_routes(
     @app.post("/api/leads/{lead_id}/cursor/certify")
     async def cursor_certify(lead_id: str):
         verdict = await certify.certify(lead_id)
+        explanation = VERDICT_EXPLANATIONS.get(
+            verdict.verdict.lower(),
+            "Review the evidence and recommended actions before making a deployment decision.",
+        )
         return Card(
             H4(f"Verdict: {verdict.verdict}", cls="font-semibold"),
-            P(f"Confidence: {verdict.confidence:.0%}"),
-            Ul(*[Li(c) for c in verdict.conditions]) if verdict.conditions else "",
+            P(explanation, cls="text-sm text-slate-600 mt-1"),
+            Div(
+                Strong("Confidence: "),
+                Span(f"{verdict.confidence:.0%}"),
+                P(
+                    "Confidence reflects how complete the available manifest, validation, status, "
+                    "and audit evidence looked to Cursor Assist.",
+                    cls="text-xs text-slate-500 mt-1",
+                ),
+                cls="my-3",
+            ),
+            Div(
+                H5("Conditions to clear", cls="font-semibold text-sm"),
+                Ul(*[Li(c) for c in verdict.conditions])
+                if verdict.conditions
+                else P("No open conditions returned.", cls="text-sm text-slate-600"),
+                cls="mb-3",
+            ),
+            Div(
+                H5("Evidence reviewed", cls="font-semibold text-sm"),
+                Ul(*[Li(f"{item.source}: {item.finding}") for item in verdict.evidence])
+                if verdict.evidence
+                else P("No detailed evidence returned.", cls="text-sm text-slate-600"),
+                cls="mb-3",
+            ),
+            Div(
+                H5("Recommended actions", cls="font-semibold text-sm"),
+                Ul(*[Li(action) for action in verdict.recommended_actions])
+                if verdict.recommended_actions
+                else P("Continue with the wizard gates below.", cls="text-sm text-slate-600"),
+            ),
         )
 
     @app.post("/api/leads/{lead_id}/cursor/troubleshoot")

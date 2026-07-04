@@ -3,17 +3,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
-from fasthtml.common import *  # noqa: F403
+from fasthtml.common import P
 
 from ai_adoption_studio.adapters.delivery_validator import DeploymentOrchestrator
 from ai_adoption_studio.adapters.gateway_client import GatewayClient
-from ai_adoption_studio.components.capability_picker import capability_picker
-from ai_adoption_studio.components.deploy_log_viewer import deploy_log_viewer, job_progress
 from ai_adoption_studio.components.status_grid import status_grid
-from ai_adoption_studio.config import settings
-from ai_adoption_studio.models.workflow_state import SmokeResult
 from ai_adoption_studio.pages.wizard_steps.render import render_step
 from ai_adoption_studio.services.job_runner import JobRunner
 from ai_adoption_studio.services.smoke_test_service import SmokeTestService
@@ -35,9 +30,6 @@ def register_api_lead_routes(app, store: LeadStore, wizard: WizardService, jobs:
     async def lead_status(lead_id: str):
         active_store, active_wizard, _, _ = _deps()
         snapshot = await status_aggregator.poll(lead_id)
-        accept = ""
-        if hasattr(app, "request"):
-            pass
         return status_grid(lead_id, snapshot)
 
     @app.get("/api/leads/{lead_id}/capabilities")
@@ -82,6 +74,9 @@ def register_api_lead_routes(app, store: LeadStore, wizard: WizardService, jobs:
             return code
 
         job = active_jobs.spawn(lead_id, "deploy", _deploy)
+        job.message = "Deploy job queued. Preparing delivery validator and lab stack."
+        job.progress_pct = 5
+        active_jobs.update_job(lead_id, job)
         active_wizard.set_active_job(lead_id, "deploy", job.job_id)
         return await render_step(
             lead_id, "deploy_lab", store=active_store, wizard=active_wizard, jobs=active_jobs, message=f"Deploy job {job.job_id} started."

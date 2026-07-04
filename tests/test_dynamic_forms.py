@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from fasthtml.common import to_xml
+
+from ai_adoption_studio.components.dynamic_form import dynamic_form
 from ai_adoption_studio.services.form_validator import FormValidator
 from ai_adoption_studio.services.question_set_loader import Question, QuestionSet
 
@@ -62,3 +65,23 @@ def test_coerce_boolean_and_integer() -> None:
     assert data["count"] == 3
     assert data["active"] is True
     assert data["tags"] == ["x"]
+
+
+def test_dynamic_form_renders_select_questions_as_visible_radio_options() -> None:
+    html = to_xml(dynamic_form(_sample_set(), group_by_dimension=False))
+
+    assert 'name="tier"' in html
+    assert 'type="radio"' in html
+    assert 'value="a"' in html
+    assert 'value="b"' in html
+    assert "Tier" in html
+
+
+def test_dynamic_form_renders_help_and_possible_values() -> None:
+    html = to_xml(dynamic_form(_sample_set(), group_by_dimension=False))
+
+    assert "Help me choose" in html
+    assert "Possible values:" in html
+    assert "A:" in html
+    assert "B:" in html
+    assert "Accepted range: minimum 1, maximum 10." in html

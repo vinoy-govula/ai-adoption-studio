@@ -7,11 +7,11 @@ from typing import Any
 from fasthtml.common import *  # noqa: F403
 from monsterui.all import *  # noqa: F403
 
-from ai_adoption_studio.config import settings
+from ai_adoption_studio.components.htmx import operator_hx_headers
 
 
 def manual_checklist(lead_id: str, checks: list[dict[str, Any]], cc_url: str) -> FT:
-    auth = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
+    auth = operator_hx_headers()
     items = []
     for check in checks:
         cid = check.get("id", "")

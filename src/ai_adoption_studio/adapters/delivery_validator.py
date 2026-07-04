@@ -17,6 +17,19 @@ class DeploymentOrchestrator:
     def __init__(self, validator_root: Path | None = None) -> None:
         self._root = validator_root or settings.delivery_validator_root
 
+    def _validator_cwd(self) -> str:
+        root = self._root.resolve()
+        if not root.is_dir():
+            raise RuntimeError(
+                "Delivery validator root is not a valid directory: "
+                f"{root}. Set STUDIO_DELIVERY_VALIDATOR_ROOT with forward slashes, "
+                'for example "../ai-delivery-validator".'
+            )
+        return str(root)
+
+    def _path_arg(self, path: Path) -> str:
+        return str(path.resolve())
+
     def _uv_cmd(self, script: str, *args: str) -> list[str]:
         if sys.platform == "win32":
             return ["uv", "run", script, *args]
@@ -54,15 +67,18 @@ class DeploymentOrchestrator:
         output_dir.mkdir(parents=True, exist_ok=True)
         branding_path = output_dir / "branding.json"
         branding_path.write_text(json.dumps(branding, indent=2), encoding="utf-8")
+        assessment_path = assessment_path.resolve()
+        branding_path = branding_path.resolve()
+        output_dir = output_dir.resolve()
 
         cmd = self._uv_cmd(
             "delivery-generate-kit",
             "--assessment",
-            str(assessment_path),
+            self._path_arg(assessment_path),
             "--branding",
-            str(branding_path),
+            self._path_arg(branding_path),
             "--output-dir",
-            str(output_dir),
+            self._path_arg(output_dir),
             "--runtime-manager-url",
             settings.runtime_manager_base_url,
         )
@@ -70,7 +86,7 @@ class DeploymentOrchestrator:
             cmd.extend(["--public-url", str(branding["public_url"])])
         proc = await asyncio.create_subprocess_exec(
             *cmd,
-            cwd=str(self._root),
+            cwd=self._validator_cwd(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=self._env(),
@@ -95,20 +111,22 @@ class DeploymentOrchestrator:
         log_path: Path,
     ) -> int:
         staging_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = manifest_path.resolve()
+        staging_dir = staging_dir.resolve()
         cmd = self._uv_cmd(
             "delivery-deploy-lab",
             "--manifest",
-            str(manifest_path),
+            self._path_arg(manifest_path),
             "--staging-dir",
-            str(staging_dir),
+            self._path_arg(staging_dir),
             "--deployment-catalog-root",
-            str(settings.deployment_catalog_root),
+            self._path_arg(settings.deployment_catalog_root),
         )
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("ab") as log_file:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                cwd=str(self._root),
+                cwd=self._validator_cwd(),
                 stdout=log_file,
                 stderr=asyncio.subprocess.STDOUT,
                 env=self._env(manifest_path=manifest_path),
@@ -125,18 +143,20 @@ class DeploymentOrchestrator:
         log_path: Path,
     ) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = manifest_path.resolve()
+        output_dir = output_dir.resolve()
         cmd = self._uv_cmd(
             "delivery-validate",
             "--manifest",
-            str(manifest_path),
+            self._path_arg(manifest_path),
             "--output-dir",
-            str(output_dir),
+            self._path_arg(output_dir),
         )
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("ab") as log_file:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                cwd=str(self._root),
+                cwd=self._validator_cwd(),
                 stdout=log_file,
                 stderr=asyncio.subprocess.STDOUT,
                 env=self._env(capability, manifest_path=manifest_path),

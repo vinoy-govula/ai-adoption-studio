@@ -1,6 +1,6 @@
 from fasthtml.common import *  # noqa: F403
 
-from ai_adoption_studio.layouts.base import page_layout
+from ai_adoption_studio.layouts.base import page_layout, wizard_link
 
 
 def leads_page(leads: list[dict], message: str = "") -> FT:
@@ -116,32 +116,75 @@ def export_page(files: list[str], message: str = "") -> FT:
     )
 
 
-def eoi_form_page(message: str = "") -> FT:
+def eoi_form_page(
+    message: str = "",
+    values: dict | None = None,
+    *,
+    lead_id: str | None = None,
+) -> FT:
+    record = values or {}
+    responses = record.get("responses", {})
+    consent = record.get("consent", {})
+    intent = responses.get("intent", "")
+    action = f"/eoi/{lead_id}" if lead_id else "/eoi-form"
+    submit_label = "Save EOI" if lead_id else "Submit EOI"
     return page_layout(
-        "EOI Form",
+        "Edit EOI" if lead_id else "EOI Form",
         "eoi",
-        H1("Public EOI questionnaire", cls="text-2xl font-bold mb-4"),
+        H1("Existing EOI" if lead_id else "Public EOI questionnaire", cls="text-2xl font-bold mb-4"),
         P(message, cls="text-green-700 mb-4") if message else "",
-        Form(method="post", action="/eoi-form", cls="bg-white p-6 rounded shadow max-w-xl")(
+        wizard_link("Open wizard", lead_id, cls="text-blue-600 underline mb-4 inline-block") if lead_id else "",
+        Form(method="post", action=action, cls="bg-white p-6 rounded shadow max-w-xl")(
             Label("Organisation name"),
-            Input(name="org_name", required=True, cls="block border p-2 w-full mb-3"),
+            Input(
+                name="org_name",
+                value=responses.get("org_name", ""),
+                required=True,
+                cls="block border p-2 w-full mb-3",
+            ),
             Label("Industry"),
-            Input(name="industry", value="healthcare", cls="block border p-2 w-full mb-3"),
+            Input(
+                name="industry",
+                value=responses.get("industry", ""),
+                cls="block border p-2 w-full mb-3",
+            ),
             Label("Contact email"),
-            Input(name="contact_email", type="email", required=True, cls="block border p-2 w-full mb-3"),
+            Input(
+                name="contact_email",
+                type="email",
+                value=responses.get("contact_email", ""),
+                required=True,
+                cls="block border p-2 w-full mb-3",
+            ),
             Label("Contact name"),
-            Input(name="contact_name", required=True, cls="block border p-2 w-full mb-3"),
+            Input(
+                name="contact_name",
+                value=responses.get("contact_name", ""),
+                required=True,
+                cls="block border p-2 w-full mb-3",
+            ),
             Label("Intent"),
             Select(
-                Option("explore", value="explore"),
-                Option("deploy", value="deploy", selected=True),
+                Option("Select intent", value="", selected=intent == ""),
+                Option("explore", value="explore", selected=intent == "explore"),
+                Option("deploy", value="deploy", selected=intent == "deploy"),
                 name="intent",
                 cls="block border p-2 w-full mb-3",
             ),
-            Input(type="checkbox", name="privacy_policy_accepted", value="true", checked=True),
+            Input(
+                type="checkbox",
+                name="privacy_policy_accepted",
+                value="true",
+                checked=bool(consent.get("privacy_policy_accepted")),
+            ),
             Label("Privacy policy accepted", cls="ml-2"),
-            Input(type="checkbox", name="contact_permitted", value="true", checked=True),
+            Input(
+                type="checkbox",
+                name="contact_permitted",
+                value="true",
+                checked=bool(consent.get("contact_permitted")),
+            ),
             Label("Contact permitted", cls="ml-2 block mb-3"),
-            Button("Submit EOI", type="submit", cls="bg-blue-600 text-white px-4 py-2 rounded"),
+            Button(submit_label, type="submit", cls="bg-blue-600 text-white px-4 py-2 rounded"),
         ),
     )

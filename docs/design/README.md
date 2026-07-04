@@ -42,6 +42,7 @@
 | [ADR-001-wizard-orchestration-boundaries.md](./ADR-001-wizard-orchestration-boundaries.md) | Deploy/validate without boundary violations |
 | [ADR-002-cursor-agent-certification.md](./ADR-002-cursor-agent-certification.md) | Cursor SDK integration and guardrails |
 | [ADR-004-monsterui-web-wizard-v1.md](./ADR-004-monsterui-web-wizard-v1.md) | **Accepted** — FastHTML + MonsterUI web wizard |
+| [ADR-005-operator-startup-and-console.md](./ADR-005-operator-startup-and-console.md) | **Accepted** — single-command startup + read-only console |
 | [ADR-003-console-application.md](./ADR-003-console-application.md) | Superseded — CLI/TUI (historical) |
 
 ---
@@ -62,7 +63,8 @@
 | [SPEC-web-interface-v1.md](./SPEC-web-interface-v1.md) | Routes, MonsterUI app bootstrap, auth |
 | [SPEC-wizard-state-model-v1.md](./SPEC-wizard-state-model-v1.md) | Workflow state, artifacts, idempotency |
 | [SPEC-dynamic-forms-v1.md](./SPEC-dynamic-forms-v1.md) | Question-set → MonsterUI forms |
-| [SPEC-deployment-orchestration-v1.md](./SPEC-deployment-orchestration-v1.md) | Deploy adapter, async jobs, logs |
+| [SPEC-deployment-orchestration-v1.md](./SPEC-deployment-orchestration-v1.md) | Deploy adapter, async jobs, read-only console |
+| [SPEC-operator-single-command-v1.md](./SPEC-operator-single-command-v1.md) | One-command startup orchestrator (`studio up`) |
 | [SPEC-live-status-aggregation-v1.md](./SPEC-live-status-aggregation-v1.md) | Health polling, status grid |
 | [SPEC-validation-ui-v1.md](./SPEC-validation-ui-v1.md) | Validation trigger, report UI |
 | [SPEC-llm-test-selection-v1.md](./SPEC-llm-test-selection-v1.md) | Operator capability selection |
@@ -75,6 +77,7 @@
 | Document | Purpose |
 |----------|---------|
 | [PLAN-implementation-phases-v1.md](./PLAN-implementation-phases-v1.md) | Phased delivery plan |
+| [PLAN-operator-experience-v1.md](./PLAN-operator-experience-v1.md) | Operator experience plan (single command, key seed, console) |
 | [TEST-plan-wizard-v1.md](./TEST-plan-wizard-v1.md) | Test strategy and golden path |
 | [PIR-template-v1.md](./PIR-template-v1.md) | Platform Improvement Record template |
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fasthtml.common import *  # noqa: F403
 from monsterui.all import *  # noqa: F403
 
-from ai_adoption_studio.config import settings
+from ai_adoption_studio.components.htmx import operator_hx_headers
 
 
 def wizard_stepper(lead_id: str, steps: list[dict[str, str]], current: str) -> FT:
@@ -30,7 +30,7 @@ def wizard_stepper(lead_id: str, steps: list[dict[str, str]], current: str) -> F
         else:
             cls += " hover:bg-slate-700"
 
-        auth_header = f"headers:{{'Authorization':'Bearer {settings.internal_api_key}'}}"
+        auth_header = operator_hx_headers()
 
         if status in {"complete", "available", "in_progress"}:
             items.append(

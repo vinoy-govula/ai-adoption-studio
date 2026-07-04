@@ -114,13 +114,40 @@ Before deploy button enabled in wizard:
 
 Displayed as MonsterUI checklist panel with infrastructure stage and edge profile summary.
 
+> **Config, not secrets.** `STUDIO_INTERNAL_API_KEY`, DB credentials, and `STUDIO_PLATFORM_API_KEY` are **static config**, not managed secrets — this is an internal tool. The checklist reads them from the single local `.env`; it never generates or rotates them. The Gateway token is made durable by the Gateway startup seed ([ADR-006](../../../ai-gateway/docs/adr/ADR-006-startup-bootstrap-key-seed.md)). See [SPEC-operator-single-command-v1.md §5](./SPEC-operator-single-command-v1.md).
+
 ---
 
-## 6. Log streaming
+## 6. Operator console (read-only, no PTY)
 
-HTMX poll `GET /api/jobs/{id}/log?tail=50` every 2s into DeployLogViewer component.
+**Decision:** No interactive terminal / PTY is exposed. The operator gets a **read-only streaming console** plus an **allow-listed command palette**. This preserves the audit/governance posture and avoids introducing an RCE surface. See [ADR-005](./ADR-005-operator-startup-and-console.md).
 
-Phase 2 (optional): SSE `GET /api/jobs/{id}/stream`
+### 6.1 Streaming
+
+Upgrade log delivery from HTMX 2s polling to **SSE**:
+
+```text
+GET /api/jobs/{id}/stream        # text/event-stream, tails jobs/{id}.log
+```
+
+- Fallback: the existing `GET /api/jobs/{id}/log?tail=N` polling remains for non-SSE clients.
+- Component: extend `components/deploy_log_viewer.py` to consume SSE via the HTMX SSE extension; keep the read-only `Pre` render (no input element).
+
+### 6.2 Command palette
+
+A fixed, server-defined allow-list — never free-form input. Each action spawns a **vetted** job through the existing `JobRunner.spawn`; no user-supplied command string is ever passed to a shell.
+
+| Palette action | Job type | Maps to |
+|----------------|----------|---------|
+| Start dependencies | `deps_up` | root `scripts/orchestrate.py up` (deps only) |
+| Health check | `health` | `StatusAggregator.poll` |
+| Deploy lab | `deploy_lab` | `DeploymentOrchestrator.deploy_lab` (existing) |
+| Validate | `validate` | `DeploymentOrchestrator.validate` (existing) |
+| Tail logs | `tail` | SSE stream of the selected job |
+
+### 6.3 Security note
+
+Because there is no PTY and no free-form command entry, the console introduces **no new execution surface** beyond the already-vetted delivery-validator subprocess calls in [ADR-001](./ADR-001-wizard-orchestration-boundaries.md).
 
 ---
 
@@ -154,6 +181,8 @@ class Settings(BaseSettings):
 - [ ] `services/job_runner.py`
 - [ ] Wire wizard step 8 deploy button
 - [ ] Integration test with mocked subprocess
+- [ ] SSE endpoint `GET /api/jobs/{id}/stream` (§6.1) with polling fallback
+- [ ] Allow-listed command palette wired to `JobRunner.spawn` (§6.2)
 
 ---
 

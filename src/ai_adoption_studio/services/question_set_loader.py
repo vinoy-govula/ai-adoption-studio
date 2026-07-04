@@ -23,6 +23,8 @@ class Question(BaseModel):
     max: int | None = None
     max_length: int | None = None
     default: Any = None
+    help_text: str = ""
+    option_help: dict[str, str] = Field(default_factory=dict)
 
 
 class QuestionSet(BaseModel):
