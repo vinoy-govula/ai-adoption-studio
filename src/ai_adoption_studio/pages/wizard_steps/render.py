@@ -12,6 +12,8 @@ from monsterui.all import *  # noqa: F403
 from ai_adoption_studio.adapters.gateway_client import GatewayClient
 from ai_adoption_studio.components.branding_form import branding_form
 from ai_adoption_studio.components.capability_picker import capability_picker
+from ai_adoption_studio.components.certified_model_panel import certified_model_panel
+from ai_adoption_studio.components.certified_model_picker import certified_model_picker
 from ai_adoption_studio.components.cursor_assist_panel import cursor_assist_panel
 from ai_adoption_studio.components.deploy_log_viewer import deploy_log_viewer, job_progress
 from ai_adoption_studio.components.dynamic_form import dynamic_form
@@ -25,9 +27,11 @@ from ai_adoption_studio.components.validation_results import validation_results
 from ai_adoption_studio.config import settings
 from ai_adoption_studio.models.workflow_state import WorkflowState
 from ai_adoption_studio.services.job_runner import JobRunner
+from ai_adoption_studio.services.platform_credentials_service import platform_credentials_service
 from ai_adoption_studio.services.question_set_loader import question_set_loader
 from ai_adoption_studio.services.status_aggregator import status_aggregator
 from ai_adoption_studio.services.store import LeadStore
+from ai_adoption_studio.services.catalog_service import find_model, find_preset, load_catalog_context
 from ai_adoption_studio.services.validation_ui_service import validation_ui_service
 from ai_adoption_studio.services.wizard_service import WizardService
 
@@ -91,13 +95,13 @@ async def render_step(
     elif step_id == "assessment_form":
         parts.append(await _assessment_form(lead_id, store, errors))
     elif step_id == "assessment_run":
-        parts.append(_assessment_run(lead_id, store))
+        parts.append(await _assessment_run(lead_id, store))
     elif step_id == "narrative":
         parts.append(await _narrative_step(lead_id, store))
     elif step_id == "cp2_approve":
         parts.append(_cp2_step(lead_id, store))
     elif step_id == "branding_kit":
-        parts.append(branding_form(lead_id, state.branding))
+        parts.append(await _branding_kit_step(lead_id, state, store))
     elif step_id == "deploy_lab":
         parts.append(await _deploy_step(lead_id, wizard, jobs, store))
     elif step_id == "live_status":
@@ -181,12 +185,72 @@ async def _assessment_form(
     )
 
 
-def _assessment_run(lead_id: str, store: LeadStore) -> FT:
+async def _assessment_run(lead_id: str, store: LeadStore) -> FT:
     report = store.get_assessment_report(lead_id)
-    body = [P("Run the rule engine to produce assessment-report.json.")]
+    body: list[FT] = [P("Run the rule engine to produce assessment-report.json.")]
     if report:
         body.append(recommendation_card(report))
+        rec = report.get("recommendation", {})
+        sizing = report.get("sizing", {})
+        profile = sizing.get("recommended_profile", rec.get("recommended_pack", "business"))
+        preset_key = rec.get("playground_preset_key", "gemma-e2b-gpu")
+        production_key = rec.get("production_model", "qwen3-7b")
+        catalog = await load_catalog_context(profile=profile)
+        if catalog["available"]:
+            body.append(
+                certified_model_panel(
+                    preset=find_preset(catalog["presets"], preset_key),
+                    production=find_model(catalog["models"], production_key),
+                    preset_key=preset_key,
+                    production_key=production_key,
+                    profile=profile,
+                )
+            )
+        else:
+            body.append(
+                Alert(
+                    "Runtime Manager catalog unavailable — model preview disabled.",
+                    cls=AlertT.warning,
+                )
+            )
     return _auth_form(lead_id, "assessment_run", *body)
+
+
+async def _branding_kit_step(lead_id: str, state: WorkflowState, store: LeadStore) -> FT:
+    branding = state.branding or {}
+    report = store.get_assessment_report(lead_id) or {}
+    rec = report.get("recommendation", {})
+    sizing = report.get("sizing", {})
+    profile = sizing.get("recommended_profile", rec.get("recommended_pack", "business"))
+    catalog = await load_catalog_context(profile=profile)
+    rec_preset = branding.get("playground_preset_key") or catalog.get("recommendations", {}).get(
+        "default_validation_preset", "gemma-e2b-gpu"
+    )
+    rec_model = branding.get("production_model") or catalog.get("recommendations", {}).get(
+        "default_production_model", "qwen3-7b"
+    )
+    parts: list[FT] = []
+    picker = None
+    if catalog["available"]:
+        picker = certified_model_picker(
+            lead_id,
+            presets=catalog["presets"],
+            models=catalog["models"],
+            selected_preset=branding.get("playground_preset_key", rec_preset),
+            selected_model=branding.get("production_model", rec_model),
+            recommended_preset=rec_preset,
+            recommended_model=rec_model,
+            lab_vram_gb=branding.get("lab_vram_gb"),
+        )
+    else:
+        parts.append(
+            Alert(
+                "Certified catalog unavailable. Configure STUDIO_RUNTIME_MANAGER_BASE_URL.",
+                cls=AlertT.warning,
+            )
+        )
+    parts.append(branding_form(lead_id, branding, model_picker=picker))
+    return Div(*parts)
 
 
 async def _narrative_step(lead_id: str, store: LeadStore) -> FT:
@@ -233,8 +297,27 @@ async def _deploy_step(
 
     manifest_path = store._store.lead_dir(lead_id) / "playground-kit.manifest.json"
     manifest = None
+    preset_certified = False
+    model_certified = False
+    image_ok = False
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        deployment = manifest.get("deployment", {})
+        preset_key = deployment.get("playground_preset", {}).get("key", "")
+        production_model = deployment.get("production_target", {}).get("model", "")
+        try:
+            from ai_adoption_studio.services.catalog_service import find_model, find_preset, load_catalog_context
+
+            profile = deployment.get("production_target", {}).get("profile", "business")
+            catalog = await load_catalog_context(profile=profile)
+            if catalog["available"]:
+                preset_certified = find_preset(catalog["presets"], preset_key) is not None
+                model_certified = find_model(catalog["models"], production_model) is not None
+                preset_entry = find_preset(catalog["presets"], preset_key)
+                packaging = (preset_entry or {}).get("packaging") or {}
+                image_ok = bool(packaging.get("docker_image"))
+        except Exception:
+            pass
     urls = resolve_urls(manifest)
 
     gateway_ok = False
@@ -251,6 +334,9 @@ async def _deploy_step(
         except httpx.HTTPError:
             pass
 
+    credentials = platform_credentials_service.load(lead_id)
+    admin_configured = bool(settings.gateway_admin_key or settings.platform_api_key)
+
     checklist = Ul(cls="space-y-2")(
         _prerequisite_item(
             "CP2 client approval recorded",
@@ -265,10 +351,16 @@ async def _deploy_step(
             "Return to Playground Kit and generate the manifest.",
         ),
         _prerequisite_item(
-            "Platform API key configured",
-            bool(settings.platform_api_key),
-            "Allows validation and smoke tests to call the Gateway using the same credential path an operator will use.",
-            "Set STUDIO_PLATFORM_API_KEY in the Studio .env file and restart Studio.",
+            "Gateway admin key for credential provisioning",
+            admin_configured,
+            "Deploy creates a lab super-user and operator API key via the Gateway admin APIs.",
+            "Set STUDIO_GATEWAY_ADMIN_KEY to the bootstrap admin key (same as deployment-catalog GATEWAY_API_KEY).",
+        ),
+        _prerequisite_item(
+            "Lab credentials provisioned",
+            credentials is not None,
+            "Operator API key used for smoke tests and validation is created automatically when deploy succeeds.",
+            "Run Deploy once the stack is healthy. Credentials are saved to platform-credentials.json in the lead folder.",
         ),
         _prerequisite_item(
             f"Gateway health endpoint reachable ({urls.gateway_health_url})",
@@ -281,6 +373,24 @@ async def _deploy_step(
             cc_ok,
             "Confirms the operator console is reachable for monitoring, audit review, and manual checks after deploy.",
             "Start or fix Control Centre, then verify its health endpoint returns 200.",
+        ),
+        _prerequisite_item(
+            "Playground preset certified in Runtime Manager",
+            preset_certified,
+            "Confirms the lab preset is in the certified catalog from Open LLM Workbench.",
+            "Return to Playground Kit and select a certified preset, or promote models in Workbench.",
+        ),
+        _prerequisite_item(
+            "Production model certified in Runtime Manager",
+            model_certified,
+            "Confirms the production target model is certified for client handover planning.",
+            "Select a certified production model on the Playground Kit step.",
+        ),
+        _prerequisite_item(
+            "Inference image defined in certified packaging",
+            image_ok,
+            "Confirms deploy will use a real docker image from the Model Card, not a placeholder.",
+            "Promote preset/model from Workbench with packaging metadata.",
         ),
     )
     parts: list[FT] = [
@@ -334,17 +444,53 @@ async def _deploy_step(
 
 
 async def _live_status(lead_id: str) -> FT:
+    auth = operator_hx_headers()
     snapshot = await status_aggregator.poll(lead_id)
-    return _auth_form(lead_id, "live_status", status_grid(lead_id, snapshot))
+    sdk_layer = snapshot.layers.get("sdk")
+    sdk_hint = (
+        Alert(
+            "SDK smoke shows the result of your last Quick smoke test. "
+            "After Deploy provisions lab credentials, open Test LLM and run Quick smoke test.",
+            cls=AlertT.info,
+        )
+        if sdk_layer and sdk_layer.status == "unknown"
+        else ""
+    )
+    return _auth_form(
+        lead_id,
+        "live_status",
+        sdk_hint,
+        status_grid(lead_id, snapshot),
+        P(
+            "This page polls infrastructure health every 10 seconds. "
+            "It does not run SDK smoke tests itself.",
+            cls="text-sm text-slate-600 mt-2",
+        ),
+        Div(cls="mt-3")(
+            Button(
+                "Open Test LLM step",
+                cls=ButtonT.secondary,
+                type="button",
+                hx_get=f"/wizard/{lead_id}/llm_test_select",
+                hx_target="#step-content",
+                hx_swap="innerHTML",
+                hx_headers=auth,
+            ),
+        ),
+    )
 
 
 async def _llm_test(lead_id: str, state: WorkflowState) -> FT:
     caps: list[dict[str, Any]] = []
     error = ""
-    try:
-        caps = await GatewayClient().list_capabilities()
-    except Exception as exc:
-        error = str(exc)
+    api_key = platform_credentials_service.resolve_operator_api_key(lead_id)
+    if not api_key:
+        error = "No operator API key yet. Complete Deploy to provision lab credentials."
+    else:
+        try:
+            caps = await GatewayClient(api_key=api_key).list_capabilities()
+        except Exception as exc:
+            error = str(exc)
     return capability_picker(
         lead_id,
         caps,

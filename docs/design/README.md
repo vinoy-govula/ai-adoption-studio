@@ -53,6 +53,7 @@
 |----------|---------|
 | [UX-wizard-flow-v1.md](./UX-wizard-flow-v1.md) | Step map, HTMX patterns, wireframes |
 | [UX-component-catalog-v1.md](./UX-component-catalog-v1.md) | MonsterUI + HTMX components |
+| [UX-certified-model-picker-v1.md](./UX-certified-model-picker-v1.md) | Certified model/preset picker wireframes |
 
 ---
 
@@ -68,6 +69,7 @@
 | [SPEC-live-status-aggregation-v1.md](./SPEC-live-status-aggregation-v1.md) | Health polling, status grid |
 | [SPEC-validation-ui-v1.md](./SPEC-validation-ui-v1.md) | Validation trigger, report UI |
 | [SPEC-llm-test-selection-v1.md](./SPEC-llm-test-selection-v1.md) | Operator capability selection |
+| [SPEC-certified-model-picker-v1.md](./SPEC-certified-model-picker-v1.md) | Certified preset/model picker (RM catalog) |
 | [SPEC-cursor-agent-bridge-v1.md](./SPEC-cursor-agent-bridge-v1.md) | Certification, troubleshoot, PIR |
 
 ---
@@ -86,6 +88,7 @@
 ## External references
 
 - [Operator guide](../README.md)
+- [Open LLM Workbench](../../ai-open-llm-workbench/docs/SPEC-workbench-rm-promotion-v1.md)
 - [MonsterUI](https://monsterui.answer.ai/)
 - [Control Centre UI stack](../../ai-control-centre/.cursor/rules/server-rendered-ui.mdc) — FastHTML + HTMX + Tailwind (Studio adds MonsterUI)
 

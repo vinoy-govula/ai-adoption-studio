@@ -49,7 +49,15 @@ class DeploymentOrchestrator:
             gateway_base = resolve_urls(manifest).gateway_base_url
         env["AI_PLATFORM_BASE_URL"] = gateway_base
         env["DEPLOYMENT_CATALOG_ROOT"] = str(settings.deployment_catalog_root.resolve())
-        if settings.platform_api_key:
+        operator_key = None
+        if manifest_path and manifest_path.exists():
+            from ai_adoption_studio.services.platform_credentials_service import platform_credentials_service
+
+            lead_id = manifest_path.parent.name
+            operator_key = platform_credentials_service.resolve_operator_api_key(lead_id)
+        if operator_key:
+            env["AI_PLATFORM_API_KEY"] = operator_key
+        elif settings.platform_api_key:
             env["AI_PLATFORM_API_KEY"] = settings.platform_api_key
         if capability:
             env["STUDIO_VALIDATION_CAPABILITY"] = capability

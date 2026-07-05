@@ -69,6 +69,7 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 **Acceptance criteria:**
 - Calls `build_assessment_report()` via existing service
 - Shows recommendation, confidence, hard gates, `rule_trace`
+- Shows read-only **certified model preview** (recommended lab preset + production model from RM catalog) — see [SPEC-certified-model-picker-v1.md](./SPEC-certified-model-picker-v1.md)
 - Flags architect review when confidence < 85% or hard gate fired
 - Back preserves edited internal responses
 
@@ -99,15 +100,18 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 
 ### Step 7 — Branding & kit config
 
-**As** an adoption engineer, **I want** to configure branding and generate playground manifest **so that** lab deploy has canonical config.
+**As** an adoption engineer, **I want** to configure branding and select certified models for the playground manifest **so that** lab deploy uses known-good inference packaging.
 
 **Acceptance criteria:**
+- **Certified model picker:** validation preset + production model from RM catalog (`status=certified` only) — see [UX-certified-model-picker-v1.md](./UX-certified-model-picker-v1.md)
+- Profile-aware filtering; parity banner when lab preset ≠ production model
+- Link-out to Open LLM Workbench for platform engineers (`STUDIO_WORKBENCH_URL`)
 - Infrastructure stage selector: Developer / Playground / Production preview
 - Optional edge overlay checkbox (Playground)
 - Path contract panel (`/api/v1`, `/control-centre`, `/healthz`)
 - Form: logo URL, welcome message, public URL, TTL
-- Generate via RM kit builder / `delivery-generate-kit` with `--public-url`
-- Manifest includes `deployment.infrastructure_stage` and `deployment.edge_profile`
+- Generate via RM kit builder / `delivery-generate-kit` with selected preset and production model
+- Manifest includes `deployment.infrastructure_stage`, `deployment.edge_profile`, and certified packaging refs
 - Save manifest to lead artifact dir
 
 ---
@@ -118,8 +122,8 @@ Entry: `studio wizard {lead_id}` · Inbox: `studio leads list`
 
 **Acceptance criteria:**
 - Requires cp2 approved
-- Shows stage-specific prerequisites checklist (Gateway + CC health at manifest URLs)
-- Triggers deploy job (platform stack from deployment-catalog when playground + edge overlay, then runtime compose)
+- Shows stage-specific prerequisites checklist (Gateway + CC health, **certified preset/model**, image pullable, GPU if required)
+- Triggers deploy job (platform stack from deployment-catalog when playground + edge overlay, then runtime compose from certified packaging)
 - Streams logs in LogPanel
 - Updates manifest status: `deploying` → `active` or `failed`
 - On failure: link to Cursor troubleshoot panel

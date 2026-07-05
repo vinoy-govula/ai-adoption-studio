@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from ai_adoption_studio.config import settings
 
@@ -26,6 +27,38 @@ def _gateway_base_from_access(access: dict[str, Any]) -> str:
     if public_url.endswith(api_path):
         return public_url[: -len(api_path)]
     return public_url
+
+
+def _join_public_path(base: str, path: str) -> str:
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    return f"{base.rstrip('/')}{normalized_path}".replace("//", "/").replace(":/", "://")
+
+
+def normalize_public_base_for_edge(
+    public_url: str,
+    *,
+    edge_profile: str,
+    gateway_base_url: str | None = None,
+    edge_base_url: str | None = None,
+) -> str:
+    """Route localhost playground polls through edge when platform-overlay is active."""
+    base = public_url.rstrip("/")
+    if edge_profile != "platform-overlay":
+        return base
+
+    parsed = urlparse(base)
+    if parsed.hostname not in {"localhost", "127.0.0.1"}:
+        return base
+
+    gateway = urlparse((gateway_base_url or settings.gateway_base_url).rstrip("/"))
+    if parsed.port != gateway.port:
+        return base
+
+    edge = urlparse((edge_base_url or settings.edge_base_url).rstrip("/"))
+    hostname = edge.hostname or parsed.hostname
+    port = edge.port
+    netloc = hostname if port is None else f"{hostname}:{port}"
+    return urlunparse((edge.scheme or parsed.scheme, netloc, "", "", "", ""))
 
 
 def infrastructure_stage_from_manifest(manifest: dict[str, Any] | None) -> str:
@@ -62,21 +95,24 @@ def resolve_urls(manifest: dict[str, Any] | None = None) -> InfrastructureUrls:
         )
 
     access = manifest.get("access", {})
-    gateway_base = _gateway_base_from_access(access)
+    gateway_base = normalize_public_base_for_edge(
+        _gateway_base_from_access(access),
+        edge_profile=edge_profile,
+    )
     cc_path = access.get("control_centre_path", "/control-centre").rstrip("/")
     if not cc_path.startswith("/"):
         cc_path = f"/{cc_path}"
 
     use_edge = edge_profile == "platform-overlay" or stage in {"playground", "production_preview"}
-    cc_public = f"{gateway_base}{cc_path}".replace("//", "/").replace(":/", "://")
+    cc_public = _join_public_path(gateway_base, cc_path)
 
     return InfrastructureUrls(
         infrastructure_stage=stage,
         edge_profile=edge_profile,
         gateway_base_url=gateway_base,
-        gateway_health_url=f"{gateway_base}/healthz",
+        gateway_health_url=_join_public_path(gateway_base, "/healthz"),
         control_centre_url=cc_public,
-        control_centre_health_url=f"{cc_public}/healthz".replace("//", "/").replace(":/", "://"),
+        control_centre_health_url=_join_public_path(cc_public, "/healthz"),
         runtime_manager_url=settings.runtime_manager_base_url.rstrip("/"),
         use_edge_routing=use_edge,
     )

@@ -13,7 +13,7 @@ from ai_adoption_studio.components.htmx import operator_hx_headers
 def validation_results(lead_id: str, report: dict[str, Any]) -> FT:
     auth = operator_hx_headers()
     status = report.get("status", "unknown")
-    alert_cls = AlertT.success if status == "passed" else AlertT.destructive
+    alert_cls = AlertT.success if status == "passed" else AlertT.error
     rows = []
     for check in report.get("checks", []):
         failed = check.get("status") == "failed"

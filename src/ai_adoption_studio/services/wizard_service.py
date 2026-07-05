@@ -95,7 +95,7 @@ class WizardService:
             return "summarization"
         if "sql_analytics" in interests:
             return "sql-analysis"
-        return "chat"
+        return "summarization"
 
     def _compute_step_status(self, lead_id: str, step_id: str, state: WorkflowState) -> StepStatus:
         record = state.steps.get(step_id)

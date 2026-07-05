@@ -15,17 +15,21 @@
                     │  Wizard UI │ BFF │ Job runner       │
                     └───────────┬─────────────────────────┘
                                 │
-        ┌───────────────────────┼───────────────────────┐
-        ▼                       ▼                       ▼
-┌───────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│ ai-runtime-   │    │ ai-delivery-     │    │ Cursor SDK      │
-│ manager       │    │ validator        │    │ certify/troubles│
-└───────────────┘    └──────────────────┘    └─────────────────┘
+        ┌───────────────────────┼───────────────────────┬───────────────────┐
+        ▼                       ▼                       ▼                   ▼
+┌───────────────┐    ┌──────────────────┐    ┌─────────────────┐   ┌──────────────────┐
+│ ai-runtime-   │    │ ai-delivery-     │    │ Cursor SDK      │   │ ai-open-llm-     │
+│ manager       │    │ validator        │    │ certify/troubles│   │ workbench (link) │
+│ certified     │    │                  │    │                 │   │ model ops only   │
+│ catalog       │    │                  │    │                 │   │                  │
+└───────────────┘    └──────────────────┘    └─────────────────┘   └──────────────────┘
                                 │
                                 ▼
               Lab stack: Runtime → Gateway → Control Centre
               Tests via ai-platform-sdk (capability)
 ```
+
+Studio reads **certified models and presets** from Runtime Manager only. Open LLM Workbench is linked for platform engineers; Studio never calls Workbench APIs during lead delivery.
 
 ---
 

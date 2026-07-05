@@ -355,8 +355,9 @@ async def test_deploy_step_explains_prerequisites(
     assert "Confirms the customer has approved the assessment" in html
     assert "Playground manifest exists" in html
     assert "deployment manifest used by the delivery validator" in html
-    assert "Platform API key configured" in html
-    assert "Set STUDIO_PLATFORM_API_KEY" in html
+    assert "Gateway admin key for credential provisioning" in html
+    assert "STUDIO_GATEWAY_ADMIN_KEY" in html
+    assert "Lab credentials provisioned" in html
     assert "Gateway health endpoint reachable" in html
     assert "Control Centre health endpoint reachable" in html
     assert "How to resolve:" in html

@@ -180,6 +180,9 @@ async def handle_step_post(
             "ttl_days": int(form.get("ttl_days", 30) or 30),
             "infrastructure_stage": form.get("infrastructure_stage", "playground"),
             "use_edge_overlay": form.get("use_edge_overlay") == "true",
+            "playground_preset_key": form.get("playground_preset_key", ""),
+            "production_model": form.get("production_model", ""),
+            "model_selection_source": "operator",
         }
         wizard.save_branding(lead_id, branding)
         from ai_adoption_studio.adapters.delivery_validator import DeploymentOrchestrator

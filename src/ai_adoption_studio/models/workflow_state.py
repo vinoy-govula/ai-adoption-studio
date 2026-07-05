@@ -69,7 +69,7 @@ class SmokeResult(BaseModel):
 
 
 class ValidationState(BaseModel):
-    test_capability: str = "chat"
+    test_capability: str = "summarization"
     test_model_override: str | None = None
     test_prompt: str = "Summarize this deployment in one sentence."
     selection_source: str = "recommended"

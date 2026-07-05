@@ -41,7 +41,7 @@ MonsterUI: `Container`, `Card`, `Grid`, theme from `Theme.slate.headers()`.
 | 4 | `assessment_run` | Assessment | Run rules | report exists |
 | 5 | `narrative` | Narrative | Generate | optional |
 | 6 | `cp2_approve` | Client approval | Approve cp2 | cp2 |
-| 7 | `branding_kit` | Playground kit | Generate manifest | manifest valid |
+| 7 | `branding_kit` | Playground kit | Generate manifest | manifest valid + certified models selected |
 | 8 | `deploy_lab` | Deploy | Start deploy | cp2 + manifest |
 | 9 | `live_status` | Live status | Refresh | deploy active |
 | 10 | `llm_test_select` | Test LLM | Save + Quick smoke | capability selected |

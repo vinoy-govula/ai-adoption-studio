@@ -26,4 +26,23 @@ def test_resolve_urls_playground_with_edge() -> None:
     assert urls.gateway_base_url == "https://playground-acme.example.com"
     assert urls.gateway_health_url == "https://playground-acme.example.com/healthz"
     assert urls.control_centre_url == "https://playground-acme.example.com/control-centre"
+    assert urls.control_centre_health_url == "https://playground-acme.example.com/control-centre/healthz"
     assert urls.use_edge_routing is True
+
+
+def test_resolve_urls_playground_localhost_edge_overlay() -> None:
+    manifest = {
+        "access": {
+            "public_url": "http://localhost:8000",
+            "control_centre_path": "/control-centre",
+        },
+        "deployment": {
+            "infrastructure_stage": "playground",
+            "edge_profile": "platform-overlay",
+        },
+    }
+    urls = resolve_urls(manifest)
+    assert urls.gateway_base_url == "http://localhost"
+    assert urls.gateway_health_url == "http://localhost/healthz"
+    assert urls.control_centre_url == "http://localhost/control-centre"
+    assert urls.control_centre_health_url == "http://localhost/control-centre/healthz"

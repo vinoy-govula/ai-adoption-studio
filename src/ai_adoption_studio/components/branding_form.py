@@ -25,13 +25,22 @@ def _help(text: str, *items: str) -> FT:
     )
 
 
-def branding_form(lead_id: str, values: dict[str, Any] | None = None) -> FT:
+def branding_form(
+    lead_id: str,
+    values: dict[str, Any] | None = None,
+    *,
+    model_picker: FT | None = None,
+) -> FT:
     auth = operator_hx_headers()
     v = values or {}
     stage = v.get("infrastructure_stage", "playground")
     use_edge = v.get("use_edge_overlay", stage == "playground")
     default_url = v.get("public_url") or (
-        "http://localhost:8000" if stage == "developer" else ""
+        "http://localhost:8000"
+        if stage == "developer"
+        else "http://localhost"
+        if use_edge
+        else ""
     )
 
     return Form(
@@ -41,6 +50,7 @@ def branding_form(lead_id: str, values: dict[str, Any] | None = None) -> FT:
         hx_swap="innerHTML",
         hx_headers=auth,
     )(
+        model_picker,
         H4("Infrastructure stage", cls="font-semibold mt-2"),
         P(
             "Select how this playground will be accessed. See deployment-catalog "
@@ -110,6 +120,7 @@ def branding_form(lead_id: str, values: dict[str, Any] | None = None) -> FT:
         _help(
             "External URL users will open for the playground.",
             "Developer default: http://localhost:8000.",
+            "Playground with edge overlay: http://localhost (routes Gateway and Control Centre paths).",
             "Playground or preview: use the customer-approved single URL when available.",
         ),
         LabelInput("TTL (days)", name="ttl_days", value=str(v.get("ttl_days", 30))),

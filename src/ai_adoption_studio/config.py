@@ -11,8 +11,11 @@ class Settings(BaseSettings):
     eoi_rate_limit_per_minute: int = 30
 
     platform_api_key: str = ""
+    gateway_admin_key: str = ""
     gateway_base_url: str = "http://localhost:8000"
+    edge_base_url: str = "http://localhost"
     runtime_manager_base_url: str = "http://localhost:8001"
+    workbench_url: str = "http://localhost:8020"
     control_centre_base_url: str = "http://localhost:8002"
     delivery_validator_root: Path = Path("../ai-delivery-validator")
     deployment_catalog_root: Path = Path("../deployment-catalog")

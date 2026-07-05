@@ -11,6 +11,7 @@ from ai_adoption_studio.adapters.gateway_client import GatewayClient
 from ai_adoption_studio.components.status_grid import status_grid
 from ai_adoption_studio.pages.wizard_steps.render import render_step
 from ai_adoption_studio.services.job_runner import JobRunner
+from ai_adoption_studio.services.platform_credentials_service import platform_credentials_service
 from ai_adoption_studio.services.smoke_test_service import SmokeTestService
 from ai_adoption_studio.services.status_aggregator import status_aggregator
 from ai_adoption_studio.services.store import LeadStore
@@ -35,13 +36,14 @@ def register_api_lead_routes(app, store: LeadStore, wizard: WizardService, jobs:
     @app.get("/api/leads/{lead_id}/capabilities")
     async def lead_capabilities(lead_id: str):
         try:
-            caps = await GatewayClient().list_capabilities()
+            api_key = platform_credentials_service.resolve_operator_api_key(lead_id)
+            caps = await GatewayClient(api_key=api_key).list_capabilities()
         except Exception as exc:
             return {"success": False, "error": str(exc)}
         return {"success": True, "data": caps}
 
     @app.post("/api/leads/{lead_id}/smoke-test")
-    async def lead_smoke_test(lead_id: str, test_capability: str = "chat", test_prompt: str = ""):
+    async def lead_smoke_test(lead_id: str, test_capability: str = "summarization", test_prompt: str = ""):
         _, _, _, active_smoke = _deps()
         result = await active_smoke.run(lead_id, capability=test_capability, prompt=test_prompt)
         cls = "text-green-700" if result.status == "passed" else "text-red-700"
@@ -71,6 +73,15 @@ def register_api_lead_routes(app, store: LeadStore, wizard: WizardService, jobs:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest["status"] = "active" if code == 0 else "failed"
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            if code == 0:
+                try:
+                    await platform_credentials_service.provision(lead_id)
+                except Exception as exc:
+                    log_path.write_text(
+                        (log_path.read_text(encoding="utf-8") if log_path.exists() else "")
+                        + f"\nCredential provisioning failed: {exc}\n",
+                        encoding="utf-8",
+                    )
             return code
 
         job = active_jobs.spawn(lead_id, "deploy", _deploy)

@@ -21,6 +21,8 @@ def wizard_stepper(lead_id: str, steps: list[dict[str, str]], current: str) -> F
             icon = "●"
         elif status == "locked":
             icon = "🔒"
+        elif status == "available":
+            icon = "→"
 
         cls = "block py-2 px-3 rounded text-sm mb-1"
         if step_id == current:
@@ -28,7 +30,7 @@ def wizard_stepper(lead_id: str, steps: list[dict[str, str]], current: str) -> F
         elif status == "locked":
             cls += " text-slate-500 cursor-not-allowed"
         else:
-            cls += " hover:bg-slate-700"
+            cls += " hover:bg-slate-700 cursor-pointer"
 
         auth_header = operator_hx_headers()
 
