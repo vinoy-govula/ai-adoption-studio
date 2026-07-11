@@ -190,27 +190,41 @@ async def handle_step_post(
                 message="Select both a certified playground preset and production model before generating the manifest.",
             )
         wizard.save_branding(lead_id, branding)
-        from ai_adoption_studio.adapters.delivery_validator import DeploymentOrchestrator
-
         lead_dir = store._store.lead_dir(lead_id)
-        assessment_path = lead_dir / "assessment-report.json"
-        orchestrator = DeploymentOrchestrator()
         branding_path = lead_dir / "branding.json"
         branding_path.write_text(json.dumps(branding, indent=2), encoding="utf-8")
-        try:
-            await orchestrator.generate_kit(
-                lead_id,
-                assessment_path,
-                branding,
-                lead_dir,
-                log_path=lead_dir / "jobs" / "kit-generate.log",
-            )
-            message = "Manifest generated."
-        except Exception as exc:
-            return await _render(step_id, message=str(exc))
+
+        from ai_adoption_studio.config import settings as studio_settings
+
+        if studio_settings.enterprise_delivery_enabled:
+            from ai_adoption_studio.adapters.delivery_validator import DeploymentOrchestrator
+
+            assessment_path = lead_dir / "assessment-report.json"
+            orchestrator = DeploymentOrchestrator()
+            try:
+                await orchestrator.generate_kit(
+                    lead_id,
+                    assessment_path,
+                    branding,
+                    lead_dir,
+                    log_path=lead_dir / "jobs" / "kit-generate.log",
+                )
+                message = "Manifest generated."
+            except Exception as exc:
+                return await _render(step_id, message=str(exc))
+        else:
+            from ai_adoption_studio.services.client_yaml_export import export_client_yaml
+
+            path = export_client_yaml(lead_id=lead_id, store=store, branding=branding)
+            message = f"client.yaml exported to {path.name}. Run package-builder in deployment-catalog."
         wizard.advance(lead_id, step_id)
 
     elif step_id == "deploy_lab":
+        from ai_adoption_studio.config import settings as studio_settings
+
+        if not studio_settings.enterprise_delivery_enabled:
+            wizard.advance(lead_id, step_id)
+            return await _render(step_id, message="Skipped — use package-builder for single-config delivery.")
         if not wizard._manifest_active(lead_id):
             return await _render(step_id, message="Start deploy before continuing.")
         wizard.advance(lead_id, step_id)
@@ -240,6 +254,11 @@ async def handle_step_post(
         wizard.advance(lead_id, step_id)
 
     elif step_id == "validate":
+        from ai_adoption_studio.config import settings as studio_settings
+
+        if not studio_settings.enterprise_delivery_enabled:
+            wizard.advance(lead_id, step_id)
+            return await _render(step_id, message="Skipped — use platform-smoke-test on the deployment package.")
         if not validation_ui_service.load_report(lead_id):
             return await _render(step_id, message="Run full validation before continuing.")
         wizard.advance(lead_id, step_id)

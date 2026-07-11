@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     control_centre_base_url: str = "http://localhost:8002"
     delivery_validator_root: Path = Path("../ai-delivery-validator")
     deployment_catalog_root: Path = Path("../deployment-catalog")
+    enterprise_delivery_enabled: bool = False
 
     cursor_api_key: str = ""
     cursor_workspace_root: Path = Path("..")
