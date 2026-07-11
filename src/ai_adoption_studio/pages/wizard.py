@@ -184,6 +184,11 @@ async def handle_step_post(
             "production_model": form.get("production_model", ""),
             "model_selection_source": "operator",
         }
+        if not branding["playground_preset_key"] or not branding["production_model"]:
+            return await _render(
+                step_id,
+                message="Select both a certified playground preset and production model before generating the manifest.",
+            )
         wizard.save_branding(lead_id, branding)
         from ai_adoption_studio.adapters.delivery_validator import DeploymentOrchestrator
 

@@ -109,6 +109,8 @@ async def test_golden_path_wizard_steps(store: LeadStore, tmp_path: Path, monkey
                     "logo_url": "",
                     "public_url": "http://localhost:8000",
                     "ttl_days": "30",
+                    "playground_preset_key": "gemma-12b-gpu",
+                    "production_model": "qwen3-7b",
                 },
             )
 

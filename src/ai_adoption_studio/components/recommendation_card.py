@@ -8,6 +8,13 @@ from fasthtml.common import *  # noqa: F403
 from monsterui.all import *  # noqa: F403
 
 
+def _format_confidence(confidence: float | int | None) -> str:
+    value = float(confidence or 0)
+    if value <= 1:
+        value *= 100
+    return f"{value:.0f}%"
+
+
 def recommendation_card(report: dict[str, Any]) -> FT:
     rec = report.get("recommendation", {})
     readiness = report.get("readiness", {})
@@ -37,7 +44,7 @@ def recommendation_card(report: dict[str, Any]) -> FT:
                 Div(P("Pack", cls="text-sm text-slate-500"), P(str(pack), cls="font-bold text-lg")),
                 Div(
                     P("Confidence", cls="text-sm text-slate-500"),
-                    P(f"{confidence:.0%}", cls="font-bold text-lg"),
+                    P(_format_confidence(confidence), cls="font-bold text-lg"),
                 ),
             ),
             Details(

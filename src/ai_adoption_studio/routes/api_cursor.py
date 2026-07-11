@@ -18,6 +18,13 @@ VERDICT_EXPLANATIONS = {
 }
 
 
+def _format_confidence(confidence: float | int) -> str:
+    value = float(confidence)
+    if value <= 1:
+        value *= 100
+    return f"{value:.0f}%"
+
+
 def register_api_cursor_routes(
     app,
     store: LeadStore,
@@ -36,7 +43,7 @@ def register_api_cursor_routes(
             P(explanation, cls="text-sm text-slate-600 mt-1"),
             Div(
                 Strong("Confidence: "),
-                Span(f"{verdict.confidence:.0%}"),
+                Span(_format_confidence(verdict.confidence)),
                 P(
                     "Confidence reflects how complete the available manifest, validation, status, "
                     "and audit evidence looked to Cursor Assist.",

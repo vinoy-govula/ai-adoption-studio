@@ -1,6 +1,9 @@
 """Certified model picker component tests."""
 
-from ai_adoption_studio.components.certified_model_picker import certified_model_picker
+from ai_adoption_studio.components.certified_model_picker import (
+    catalog_unavailable_banner,
+    certified_model_picker,
+)
 from ai_adoption_studio.components.parity_banner import parity_banner
 
 
@@ -36,3 +39,13 @@ def test_certified_model_picker_renders() -> None:
         recommended_model="qwen3-7b",
     )
     assert html is not None
+
+
+def test_catalog_unavailable_banner_empty() -> None:
+    banner = catalog_unavailable_banner(empty=True)
+    assert banner is not None
+
+
+def test_catalog_unavailable_banner_connection_error() -> None:
+    banner = catalog_unavailable_banner(error="connection refused")
+    assert banner is not None

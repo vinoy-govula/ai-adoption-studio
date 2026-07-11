@@ -17,19 +17,31 @@ async def load_catalog_context(
     try:
         recommendations = await client.get_recommendations(profile, has_gpu=has_gpu, vram_gb=vram_gb)
         presets = await client.list_presets(status="certified")
-        models = await client.list_models(status="certified", profile=profile)
-    except Exception:
+        models = await client.list_models(status="certified")
+    except Exception as exc:
         return {
             "presets": [],
             "models": [],
             "recommendations": {},
             "available": False,
+            "error": str(exc),
+            "empty": False,
+            "suggested_presets": [],
+            "suggested_models": [],
         }
+    suggested_preset_keys = set(recommendations.get("validation_presets") or [])
+    suggested_model_keys = set(recommendations.get("production_models") or [])
+    suggested_presets = [preset for preset in presets if preset.get("platform_key") in suggested_preset_keys]
+    suggested_models = [model for model in models if model.get("model") in suggested_model_keys]
     return {
         "presets": presets,
         "models": models,
         "recommendations": recommendations,
         "available": True,
+        "error": None,
+        "empty": not presets and not models,
+        "suggested_presets": suggested_presets,
+        "suggested_models": suggested_models,
     }
 
 

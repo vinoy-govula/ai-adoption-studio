@@ -43,14 +43,7 @@ def branding_form(
         else ""
     )
 
-    return Form(
-        id="step-form-branding_kit",
-        hx_post=f"/wizard/{lead_id}/branding_kit",
-        hx_target="#step-content",
-        hx_swap="innerHTML",
-        hx_headers=auth,
-    )(
-        model_picker,
+    infrastructure = Card(
         H4("Infrastructure stage", cls="font-semibold mt-2"),
         P(
             "Select how this playground will be accessed. See deployment-catalog "
@@ -101,28 +94,60 @@ def branding_form(
                 Li("/api/v1/* → Gateway"),
                 Li("/control-centre/* → Control Centre"),
             ),
-            cls="bg-slate-50 text-sm mb-4 p-3",
+            cls="bg-slate-50 text-sm mb-2 p-3",
         ),
-        LabelInput("Client slug", name="client_slug", value=v.get("client_slug", "")),
-        _help("Short lowercase identifier used in generated artifact names and URLs. Example: acme-health."),
-        LabelInput("Display name", name="display_name", value=v.get("display_name", "")),
-        _help("Customer-facing name shown in generated materials. Example: Acme Health AI Playground."),
-        LabelTextArea("Welcome message", name="welcome_message", value=v.get("welcome_message", "")),
-        _help("Introductory message for pilot users. Keep it specific to the use case and include any safe-use reminder."),
-        LabelInput("Logo URL", name="logo_url", value=v.get("logo_url", "")),
-        _help("Optional HTTPS URL for customer branding. Leave blank if no approved logo asset is available."),
-        LabelInput(
-            "Public URL",
-            name="public_url",
-            value=default_url or v.get("public_url", settings.gateway_base_url),
-            placeholder="https://playground-client.example.com",
+        cls="p-4",
+    )
+
+    branding_inputs = Card(
+        Div(cls="grid md:grid-cols-2 gap-3")(
+            Div(
+                LabelInput("Client slug", name="client_slug", value=v.get("client_slug", "")),
+                _help("Short lowercase identifier used in generated artifact names and URLs. Example: acme-health."),
+            ),
+            Div(
+                LabelInput("Display name", name="display_name", value=v.get("display_name", "")),
+                _help("Customer-facing name shown in generated materials. Example: Acme Health AI Playground."),
+            ),
+            Div(cls="md:col-span-2")(
+                LabelTextArea("Welcome message", name="welcome_message", value=v.get("welcome_message", "")),
+                _help("Introductory message for pilot users. Keep it specific to the use case and include any safe-use reminder."),
+            ),
+            Div(
+                LabelInput("Logo URL", name="logo_url", value=v.get("logo_url", "")),
+                _help("Optional HTTPS URL for customer branding. Leave blank if no approved logo asset is available."),
+            ),
+            Div(
+                LabelInput(
+                    "Public URL",
+                    name="public_url",
+                    value=default_url or v.get("public_url", settings.gateway_base_url),
+                    placeholder="https://playground-client.example.com",
+                ),
+                _help(
+                    "External URL users will open for the playground.",
+                    "Developer default: http://localhost:8000.",
+                    "Playground with edge overlay: http://localhost (routes Gateway and Control Centre paths).",
+                    "Playground or preview: use the customer-approved single URL when available.",
+                ),
+            ),
+            Div(
+                LabelInput("TTL (days)", name="ttl_days", value=str(v.get("ttl_days", 30))),
+                _help("How long the playground should remain active before review or cleanup. Common values: 7, 14, 30."),
+            ),
         ),
-        _help(
-            "External URL users will open for the playground.",
-            "Developer default: http://localhost:8000.",
-            "Playground with edge overlay: http://localhost (routes Gateway and Control Centre paths).",
-            "Playground or preview: use the customer-approved single URL when available.",
+        cls="p-4",
+    )
+
+    return Form(
+        id="step-form-branding_kit",
+        hx_post=f"/wizard/{lead_id}/branding_kit",
+        hx_target="#step-content",
+        hx_swap="innerHTML",
+        hx_headers=auth,
+    )(
+        Div(cls="grid xl:grid-cols-[1.25fr_0.95fr] gap-4 items-start")(
+            model_picker or "",
+            Div(infrastructure, branding_inputs, cls="space-y-4"),
         ),
-        LabelInput("TTL (days)", name="ttl_days", value=str(v.get("ttl_days", 30))),
-        _help("How long the playground should remain active before review or cleanup. Common values: 7, 14, 30."),
     )

@@ -97,3 +97,36 @@ def test_resolve_operator_api_key_prefers_lead_credentials(lead_dir):
         ),
     )
     assert svc.resolve_operator_api_key(lead_id) == "sk-lead-operator"
+
+
+def test_admin_api_key_falls_back_to_deployment_catalog_env(tmp_path, monkeypatch):
+    root = tmp_path / "lead-test-002"
+    root.mkdir()
+    (root / "playground-kit.manifest.json").write_text("{}", encoding="utf-8")
+    catalog_root = tmp_path / "deployment-catalog"
+    catalog_root.mkdir()
+    (catalog_root / ".env").write_text("GATEWAY_API_KEY=sk-from-catalog\n", encoding="utf-8")
+
+    class FakeWizard:
+        MANIFEST_FILE = "playground-kit.manifest.json"
+
+        def _lead_dir(self, _: str):
+            return root
+
+    svc = PlatformCredentialsService(FakeWizard())
+    monkeypatch.setattr(
+        "ai_adoption_studio.services.platform_credentials_service.settings.gateway_admin_key",
+        "",
+    )
+    monkeypatch.setattr(
+        "ai_adoption_studio.services.platform_credentials_service.settings.platform_api_key",
+        "",
+    )
+    monkeypatch.setattr(
+        "ai_adoption_studio.services.platform_credentials_service.settings.deployment_catalog_root",
+        catalog_root,
+    )
+
+    key, source = svc.admin_key_source()
+    assert key == "sk-from-catalog"
+    assert source == "deployment-catalog/.env:GATEWAY_API_KEY"

@@ -13,7 +13,10 @@ from ai_adoption_studio.adapters.gateway_client import GatewayClient
 from ai_adoption_studio.components.branding_form import branding_form
 from ai_adoption_studio.components.capability_picker import capability_picker
 from ai_adoption_studio.components.certified_model_panel import certified_model_panel
-from ai_adoption_studio.components.certified_model_picker import certified_model_picker
+from ai_adoption_studio.components.certified_model_picker import (
+    catalog_unavailable_banner,
+    certified_model_picker,
+)
 from ai_adoption_studio.components.cursor_assist_panel import cursor_assist_panel
 from ai_adoption_studio.components.deploy_log_viewer import deploy_log_viewer, job_progress
 from ai_adoption_studio.components.dynamic_form import dynamic_form
@@ -222,7 +225,8 @@ async def _branding_kit_step(lead_id: str, state: WorkflowState, store: LeadStor
     rec = report.get("recommendation", {})
     sizing = report.get("sizing", {})
     profile = sizing.get("recommended_profile", rec.get("recommended_pack", "business"))
-    catalog = await load_catalog_context(profile=profile)
+    lab_vram_gb = branding.get("lab_vram_gb") or sizing.get("lab_vram_gb")
+    catalog = await load_catalog_context(profile=profile, vram_gb=lab_vram_gb)
     rec_preset = branding.get("playground_preset_key") or catalog.get("recommendations", {}).get(
         "default_validation_preset", "gemma-e2b-gpu"
     )
@@ -231,23 +235,24 @@ async def _branding_kit_step(lead_id: str, state: WorkflowState, store: LeadStor
     )
     parts: list[FT] = []
     picker = None
-    if catalog["available"]:
+    if catalog["available"] and not catalog.get("empty"):
         picker = certified_model_picker(
             lead_id,
             presets=catalog["presets"],
             models=catalog["models"],
+            suggested_presets=catalog.get("suggested_presets"),
+            suggested_models=catalog.get("suggested_models"),
             selected_preset=branding.get("playground_preset_key", rec_preset),
             selected_model=branding.get("production_model", rec_model),
             recommended_preset=rec_preset,
             recommended_model=rec_model,
-            lab_vram_gb=branding.get("lab_vram_gb"),
+            lab_vram_gb=lab_vram_gb,
         )
+    elif catalog["available"] and catalog.get("empty"):
+        parts.append(catalog_unavailable_banner(empty=True))
     else:
         parts.append(
-            Alert(
-                "Certified catalog unavailable. Configure STUDIO_RUNTIME_MANAGER_BASE_URL.",
-                cls=AlertT.warning,
-            )
+            catalog_unavailable_banner(error=catalog.get("error")),
         )
     parts.append(branding_form(lead_id, branding, model_picker=picker))
     return Div(*parts)
@@ -300,6 +305,8 @@ async def _deploy_step(
     preset_certified = False
     model_certified = False
     image_ok = False
+    preset_entry: dict | None = None
+    model_entry: dict | None = None
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         deployment = manifest.get("deployment", {})
@@ -311,9 +318,10 @@ async def _deploy_step(
             profile = deployment.get("production_target", {}).get("profile", "business")
             catalog = await load_catalog_context(profile=profile)
             if catalog["available"]:
-                preset_certified = find_preset(catalog["presets"], preset_key) is not None
-                model_certified = find_model(catalog["models"], production_model) is not None
                 preset_entry = find_preset(catalog["presets"], preset_key)
+                model_entry = find_model(catalog["models"], production_model)
+                preset_certified = preset_entry is not None
+                model_certified = model_entry is not None
                 packaging = (preset_entry or {}).get("packaging") or {}
                 image_ok = bool(packaging.get("docker_image"))
         except Exception:
@@ -337,7 +345,8 @@ async def _deploy_step(
     credentials = platform_credentials_service.load(lead_id)
     admin_configured = bool(settings.gateway_admin_key or settings.platform_api_key)
 
-    checklist = Ul(cls="space-y-2")(
+    key_hint = platform_credentials_service.admin_api_key_hint()
+    checklist = Div(cls="grid xl:grid-cols-2 gap-3")(
         _prerequisite_item(
             "CP2 client approval recorded",
             wizard._cp2_approved(lead_id),
@@ -354,7 +363,7 @@ async def _deploy_step(
             "Gateway admin key for credential provisioning",
             admin_configured,
             "Deploy creates a lab super-user and operator API key via the Gateway admin APIs.",
-            "Set STUDIO_GATEWAY_ADMIN_KEY to the bootstrap admin key (same as deployment-catalog GATEWAY_API_KEY).",
+            f"Current source: {key_hint}. Set STUDIO_GATEWAY_ADMIN_KEY to the same bootstrap key as the running Gateway, or reuse deployment-catalog/.env GATEWAY_API_KEY.",
         ),
         _prerequisite_item(
             "Lab credentials provisioned",
@@ -394,18 +403,60 @@ async def _deploy_step(
         ),
     )
     parts: list[FT] = [
-        H4("Prerequisites"),
-        P(
-            f"Infrastructure stage: {urls.infrastructure_stage} · edge: {urls.edge_profile}",
-            cls="text-sm text-slate-600",
-        ),
-        P(
-            "These checks explain why the Deploy button may work, block, or need operator follow-up. "
-            "Deployment can start only when the core artifacts and platform services are ready.",
-            cls="text-sm text-slate-600 mb-3",
-        ),
-        checklist,
+        Div(cls="grid xl:grid-cols-[1.35fr_0.85fr] gap-4 items-start")(
+            Div(
+                H4("Prerequisites"),
+                P(
+                    f"Infrastructure stage: {urls.infrastructure_stage} · edge: {urls.edge_profile}",
+                    cls="text-sm text-slate-600",
+                ),
+                P(
+                    "These checks explain why the Deploy button may work, block, or need operator follow-up. "
+                    "Deployment can start only when the core artifacts and platform services are ready.",
+                    cls="text-sm text-slate-600 mb-3",
+                ),
+                checklist,
+            ),
+            Card(
+                H4("Credential provisioning", cls="font-semibold mb-2"),
+                P(
+                    "Studio creates a lab admin user and operator API key through Gateway admin APIs during deploy.",
+                    cls="text-sm text-slate-600 mb-2",
+                ),
+                P(f"Gateway admin key source: {key_hint}", cls="text-sm"),
+                P(
+                    "If deploy returns 401 Unauthorized, make sure the running Gateway bootstrap key matches "
+                    "`STUDIO_GATEWAY_ADMIN_KEY` or `deployment-catalog/.env GATEWAY_API_KEY`.",
+                    cls="text-sm text-slate-600 mt-2",
+                ),
+                cls="p-4",
+            ),
+        )
     ]
+    if manifest_path.exists() and (preset_entry or model_entry):
+        freshness_lines: list[FT] = []
+        if preset_entry:
+            freshness_lines.append(
+                P(
+                    f"Preset {preset_key}: revision {preset_entry.get('card_revision', '—')}, "
+                    f"certified {preset_entry.get('certified_at', '—')}",
+                    cls="text-sm text-slate-600",
+                )
+            )
+        if model_entry:
+            freshness_lines.append(
+                P(
+                    f"Production {production_model}: revision {model_entry.get('card_revision', '—')}, "
+                    f"certified {model_entry.get('certified_at', '—')}",
+                    cls="text-sm text-slate-600",
+                )
+            )
+        parts.append(
+            Div(
+                H4("Certified catalog", cls="font-semibold mt-4 mb-1"),
+                *freshness_lines,
+            )
+        )
 
     state = wizard.get_state(lead_id)
     if state.active_jobs.deploy:
