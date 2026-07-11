@@ -1,0 +1,29 @@
+---
+description: Mandatory working agreement for every coding task — plan first, minimal surgical changes, no guessed assumptions
+alwaysApply: true
+---
+
+# Coding Task Working Agreement
+
+These rules are mandatory for every coding task, in every repository.
+
+## 1. Think before coding — write the plan first
+- Before editing, state the approach: which files change, why, and in what order
+- For multi-step work, maintain a visible task list and update it as steps complete
+- If the plan changes mid-task, say so before continuing
+
+## 2. Simplicity first — the smallest change that works
+- Prefer the minimal diff that fully solves the task — no speculative abstractions or future-proofing
+- No new dependencies, layers, or patterns unless the task cannot be done without them
+- If a notably simpler alternative was rejected, explain why in one sentence
+
+## 3. Be surgical — touch only what the task needs
+- Never reformat, rename, refactor, or "clean up" code outside the task scope
+- Preserve existing style, structure, and public contracts of untouched code
+- Unrelated problems found along the way: report them, do not silently fix them
+
+## 4. No silent assumptions — ask, don't guess
+- Resolve unknowns from the codebase, specs, and docs first; ask only when they cannot answer
+- If requirements are ambiguous and interpretations differ materially, ask before coding
+- Never invent APIs, config values, file paths, or behavior — verify them in the code
+- When a small assumption is unavoidable, state it explicitly in the response
